@@ -14,6 +14,7 @@
 #include <iostream>
 #include <vector>
 #include "rasterizer.h"
+#include "auxiliary_half.h"
 #include <cuda_runtime_api.h>
 
 namespace CudaRasterizer
@@ -61,6 +62,43 @@ namespace CudaRasterizer
 		char* list_sorting_space;
 
 		static BinningState fromChunk(char*& chunk, size_t P);
+	};
+
+	struct GeometryStateHalf
+	{
+		size_t scan_size;
+		__half* depths;
+		char* scanning_space;
+		bool* clamped;
+		int* internal_radii;
+		__half2* means2D;
+		__half* cov3D;
+		__half4* conic_opacity;
+		__half* rgb;
+		uint32_t* point_offsets;
+		uint32_t* tiles_touched;
+
+		static GeometryStateHalf fromChunk(char*& chunk, size_t P);
+	};
+
+	struct ImageStateHalf
+	{
+		uint2* ranges;
+		uint32_t* n_contrib;
+
+		static ImageStateHalf fromChunk(char*& chunk, size_t N);
+	};
+
+	struct BinningStateHalf
+	{
+		size_t sorting_size;
+		uint64_t* point_list_keys_unsorted;
+		uint64_t* point_list_keys;
+		uint32_t* point_list_unsorted;
+		uint32_t* point_list;
+		char* list_sorting_space;
+
+		static BinningStateHalf fromChunk(char*& chunk, size_t P);
 	};
 
 	template<typename T> 

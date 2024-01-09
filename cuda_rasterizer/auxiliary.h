@@ -175,20 +175,20 @@ __forceinline__ __device__ bool in_frustum(int idx,
 		}								 											 \
 	}
 
-#define TEST_CUDA_MEMORY()                                                     \
-  do {                                                                         \
-    const int N = 1337, bytes = N * sizeof(float);                             \
-    std::vector<float> cpuvec(N);                                              \
-    for (size_t i = 0; i < N; i++)                                             \
-      cpuvec[i] = (float)i;                                                    \
-    float *gpuvec = NULL;                                                      \
-    CHECK_CUDA(cudaMalloc(&gpuvec, bytes), true);                              \
-    assert(gpuvec != NULL);                                                    \
-    CHECK_CUDA(                                                                \
-        cudaMemcpy(gpuvec, cpuvec.data(), bytes, cudaMemcpyHostToDevice), true)\
-    CHECK_CUDA(                                                                \
-        cudaMemcpy(cpuvec.data(), gpuvec, bytes, cudaMemcpyDeviceToHost), true)\
-    CHECK_CUDA(cudaFree(gpuvec), true);                                        \
+#define TEST_CUDA_MEMORY()                                                      \
+  do {                                                                          \
+    const int N = 1337, bytes = N * sizeof(float);                              \
+    std::vector<float> cpuvec(N);                                               \
+    for (size_t i = 0; i < N; i++)                                              \
+      cpuvec[i] = (float)i;                                                     \
+    float *gpuvec = NULL;                                                       \
+    CHECK_CUDA(cudaMalloc(&gpuvec, bytes), true);                               \
+    assert(gpuvec != NULL);                                                     \
+    CHECK_CUDA(                                                                 \
+        cudaMemcpy(gpuvec, cpuvec.data(), bytes, cudaMemcpyHostToDevice), true) \
+    CHECK_CUDA(                                                                 \
+        cudaMemcpy(cpuvec.data(), gpuvec, bytes, cudaMemcpyDeviceToHost), true) \
+    CHECK_CUDA(cudaFree(gpuvec), true);                                         \
   } while (0);
 
 #endif
