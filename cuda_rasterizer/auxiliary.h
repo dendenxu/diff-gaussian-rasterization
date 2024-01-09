@@ -14,6 +14,9 @@
 
 #include "config.h"
 #include "stdio.h"
+#include <cooperative_groups.h>
+#include <cooperative_groups/reduce.h>
+namespace cg = cooperative_groups;
 
 #define BLOCK_SIZE (BLOCK_X * BLOCK_Y)
 #define NUM_WARPS (BLOCK_SIZE/32)
@@ -46,12 +49,12 @@ __forceinline__ __device__ float ndc2Pix(float v, int S)
 __forceinline__ __device__ void getRect(const float2 p, int max_radius, uint2& rect_min, uint2& rect_max, dim3 grid)
 {
 	rect_min = {
-		min(grid.x, max((int)0, (int)((p.x - max_radius) / BLOCK_X))),
-		min(grid.y, max((int)0, (int)((p.y - max_radius) / BLOCK_Y)))
+		min(grid.x, max((int)0, (int)((p.x - max_radius - 0.5) / BLOCK_X))),
+		min(grid.y, max((int)0, (int)((p.y - max_radius - 0.5) / BLOCK_Y)))
 	};
 	rect_max = {
-		min(grid.x, max((int)0, (int)((p.x + max_radius + BLOCK_X - 1) / BLOCK_X))),
-		min(grid.y, max((int)0, (int)((p.y + max_radius + BLOCK_Y - 1) / BLOCK_Y)))
+		min(grid.x, max((int)0, (int)((p.x + max_radius + BLOCK_X - 1 + 0.5) / BLOCK_X))),
+		min(grid.y, max((int)0, (int)((p.y + max_radius + BLOCK_Y - 1 + 0.5) / BLOCK_Y)))
 	};
 }
 
@@ -136,12 +139,19 @@ __forceinline__ __device__ float sigmoid(float x)
 	return 1.0f / (1.0f + expf(-x));
 }
 
+__forceinline__ __device__ float dist2(float2 d)
+{
+	return d.x * d.x + d.y * d.y;
+}
+
 __forceinline__ __device__ bool in_frustum(int idx,
 	const float* orig_points,
 	const float* viewmatrix,
 	const float* projmatrix,
 	bool prefiltered,
-	float3& p_view)
+	float3& p_view,
+	const float padding = 0.01f // padding in ndc space
+	)
 {
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
 
@@ -149,27 +159,36 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	float4 p_hom = transformPoint4x4(p_orig, projmatrix);
 	float p_w = 1.0f / (p_hom.w + 0.0000001f);
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
-	p_view = transformPoint4x3(p_orig, viewmatrix);
+	p_view = transformPoint4x3(p_orig, viewmatrix); // write this outside
 
-	if (p_view.z <= 0.2f)// || ((p_proj.x < -1.3 || p_proj.x > 1.3 || p_proj.y < -1.3 || p_proj.y > 1.3)))
-	{
-		if (prefiltered)
-		{
-			printf("Point is filtered although prefiltered is set. This shouldn't happen!");
-			__trap();
-		}
-		return false;
+	return (p_proj.z > -1 - padding) && (p_proj.z < 1 + padding) && (p_proj.x > -1 - padding) && (p_proj.x < 1. + padding) && (p_proj.y > -1 - padding) && (p_proj.y < 1. + padding);
+}
+
+#define CHECK_CUDA(A, debug) 														 \
+	A; 																				 \
+	if(debug) { 																	 \
+		auto ret = cudaDeviceSynchronize(); 										 \
+		if (ret != cudaSuccess) { 													 \
+			std::cerr << "[CUDA ERROR] in " << __FILE__ 							 \
+			<< " Line " << __LINE__ << ": " << cudaGetErrorString(ret) << std::endl; \
+			throw std::runtime_error(cudaGetErrorString(ret)); 						 \
+		}								 											 \
 	}
-	return true;
-}
 
-#define CHECK_CUDA(A, debug) \
-A; if(debug) { \
-auto ret = cudaDeviceSynchronize(); \
-if (ret != cudaSuccess) { \
-std::cerr << "\n[CUDA ERROR] in " << __FILE__ << "\nLine " << __LINE__ << ": " << cudaGetErrorString(ret); \
-throw std::runtime_error(cudaGetErrorString(ret)); \
-} \
-}
+#define TEST_CUDA_MEMORY()                                                     \
+  do {                                                                         \
+    const int N = 1337, bytes = N * sizeof(float);                             \
+    std::vector<float> cpuvec(N);                                              \
+    for (size_t i = 0; i < N; i++)                                             \
+      cpuvec[i] = (float)i;                                                    \
+    float *gpuvec = NULL;                                                      \
+    CHECK_CUDA(cudaMalloc(&gpuvec, bytes), true);                              \
+    assert(gpuvec != NULL);                                                    \
+    CHECK_CUDA(                                                                \
+        cudaMemcpy(gpuvec, cpuvec.data(), bytes, cudaMemcpyHostToDevice), true)\
+    CHECK_CUDA(                                                                \
+        cudaMemcpy(cpuvec.data(), gpuvec, bytes, cudaMemcpyDeviceToHost), true)\
+    CHECK_CUDA(cudaFree(gpuvec), true);                                        \
+  } while (0);
 
 #endif
