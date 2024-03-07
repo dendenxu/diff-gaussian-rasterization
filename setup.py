@@ -24,7 +24,7 @@ setup(
             sources=[
             "cuda_rasterizer/rasterizer_impl.cu",
             "cuda_rasterizer/forward.cu",
-            "cuda_rasterizer/forward_half.cu",
+            # "cuda_rasterizer/forward_half.cu",
             "cuda_rasterizer/backward.cu",
             "rasterize_points.cu",
             "ext.cpp"],

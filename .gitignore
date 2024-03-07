@@ -3,3 +3,8 @@ build/
 dist/
 __pycache__/
 *.pyd
+Makefile
+CMakeCache.txt
+CMakeFiles
+*.a
+*.cmake
