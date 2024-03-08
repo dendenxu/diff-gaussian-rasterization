@@ -1,2 +1,0 @@
-[project]
-dependencies = ['torch'] # hope pip will pick up on this

@@ -150,7 +150,7 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	const float* projmatrix,
 	bool prefiltered,
 	float3& p_view,
-	const float padding = 0.01f // padding in ndc space
+	const float padding = 0.05f // padding in ndc space
 	)
 {
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
