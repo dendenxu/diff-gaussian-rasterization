@@ -150,7 +150,8 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	const float* projmatrix,
 	bool prefiltered,
 	float3& p_view,
-	const float padding = 0.05f // padding in ndc space
+	const float padding = 0.01f, // padding in ndc space // TODO: add api for changing this
+	const float xy_padding = 0.25f // padding in ndc space // TODO: add api for changing this
 	)
 {
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
@@ -161,7 +162,7 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
 	p_view = transformPoint4x3(p_orig, viewmatrix); // write this outside
 
-	return (p_proj.z > -1 - padding) && (p_proj.z < 1 + padding) && (p_proj.x > -1 - padding) && (p_proj.x < 1. + padding) && (p_proj.y > -1 - padding) && (p_proj.y < 1. + padding);
+	return (p_proj.z > -1 - padding) && (p_proj.z < 1 + padding) && (p_proj.x > -1 - xy_padding) && (p_proj.x < 1. + xy_padding) && (p_proj.y > -1 - xy_padding) && (p_proj.y < 1. + xy_padding);
 }
 
 #define CHECK_CUDA(A, debug) 														 \
