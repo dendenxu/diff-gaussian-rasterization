@@ -151,7 +151,7 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	bool prefiltered,
 	float3& p_view,
 	const float padding = 0.01f, // padding in ndc space // TODO: add api for changing this
-	const float xy_padding = 0.25f // padding in ndc space // TODO: add api for changing this
+	const float xy_padding = 1.0f // padding in ndc space // TODO: add api for changing this
 	)
 {
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
