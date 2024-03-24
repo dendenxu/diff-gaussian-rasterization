@@ -8,3 +8,4 @@ CMakeCache.txt
 CMakeFiles
 *.a
 *.cmake
+*.so
