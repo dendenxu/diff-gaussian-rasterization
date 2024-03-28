@@ -105,6 +105,10 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 
 	glm::mat3 cov = glm::transpose(T) * glm::transpose(Vrk) * T;
 
+	// Sanitize the covariance matrix
+	cov[0][0] = max(0.0f, cov[0][0]);
+	cov[1][1] = max(0.0f, cov[1][1]);
+
 	// Apply low-pass filter: every Gaussian should be at least
 	// one pixel wide/high. Discard 3rd row and column.
 	cov[0][0] += 0.3f;
