@@ -338,7 +338,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float focal_x = width / (2.0f * tan_fovx);
 
 	size_t chunk_size = required<GeometryState>(P);
-	char* chunkptr = geometryBuffer(chunk_size);
+	char* chunkptr = geometryBuffer(chunk_size); // memory allocation
 	GeometryState geomState = GeometryState::fromChunk(chunkptr, P);
 
 	if (radii == nullptr)
@@ -351,7 +351,7 @@ int CudaRasterizer::Rasterizer::forward(
 
 	// Dynamically resize image-based auxiliary buffers during training
 	size_t img_chunk_size = required<ImageState>(width * height);
-	char* img_chunkptr = imageBuffer(img_chunk_size);
+	char* img_chunkptr = imageBuffer(img_chunk_size); // memory allocation
 	ImageState imgState = ImageState::fromChunk(img_chunkptr, width * height);
 
 	if (NUM_CHANNELS != 3 && colors_precomp == nullptr)
@@ -396,7 +396,7 @@ int CudaRasterizer::Rasterizer::forward(
 	CHECK_CUDA(cudaMemcpy(&num_rendered, geomState.point_offsets + P - 1, sizeof(int), cudaMemcpyDeviceToHost), debug);
 
 	size_t binning_chunk_size = required<BinningState>(num_rendered);
-	char* binning_chunkptr = binningBuffer(binning_chunk_size);
+	char* binning_chunkptr = binningBuffer(binning_chunk_size); // memory allocation
 	BinningState binState = BinningState::fromChunk(binning_chunkptr, num_rendered);
 
 	// For each instance to be rendered, produce adequate [ tile | depth ] key 
