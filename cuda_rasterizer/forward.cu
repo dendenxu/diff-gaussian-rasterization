@@ -229,7 +229,10 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float mid = 0.5f * (cov.x + cov.z);
 	float lambda1 = mid + sqrt(max(0.1f, mid * mid - det));
 	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
+	if (lambda1 < 0 || lambda2 < 0)
+		return;
 	float my_radius = ceil(3.f * sqrt(max(lambda1, lambda2)));
+
 	// float my_radius = max(0.0f, ceil(3.f * sqrt(max(lambda1, lambda2))));
 	float2 point_image = { ndc2Pix(p_proj.x, W), ndc2Pix(p_proj.y, H) };
 	uint2 rect_min, rect_max;
