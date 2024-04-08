@@ -52,6 +52,7 @@ RasterizeGaussiansCUDA(
 	const int degree,
 	const torch::Tensor& campos,
 	const bool prefiltered,
+	const int tile_id,
 	const bool debug)
 {
   if (means3D.ndimension() != 2 || means3D.size(1) != 3) {
@@ -109,6 +110,7 @@ RasterizeGaussiansCUDA(
 		tan_fovx,
 		tan_fovy,
 		prefiltered,
+		tile_id,
 		out_color.contiguous().data_ptr<float>(),
 		out_depth.contiguous().data_ptr<float>(),
 		out_alpha.contiguous().data_ptr<float>(),

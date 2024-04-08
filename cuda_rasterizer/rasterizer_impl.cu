@@ -77,7 +77,8 @@ __global__ void duplicateWithKeys(
 	uint64_t* gaussian_keys_unsorted,
 	uint32_t* gaussian_values_unsorted,
 	int* radii,
-	dim3 grid)
+	dim3 grid,
+	dim3 id_grid)
 {
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P)
@@ -101,12 +102,19 @@ __global__ void duplicateWithKeys(
 		{
 			for (int x = rect_min.x; x < rect_max.x; x++)
 			{
-				uint64_t key = y * grid.x + x;
-				key <<= 32;
-				key |= *((uint32_t*)&depths[idx]);
-				gaussian_keys_unsorted[off] = key;
-				gaussian_values_unsorted[off] = idx;
-				off++;
+				if (id_grid.z == 1 && (x != id_grid.x || y != id_grid.y))
+				{
+					continue;
+				}
+				else 
+				{
+					uint64_t key = y * grid.x + x;
+					key <<= 32;
+					key |= *((uint32_t*)&depths[idx]);
+					gaussian_keys_unsorted[off] = key;
+					gaussian_values_unsorted[off] = idx;
+					off++;
+				}
 			}
 		}
 	}
@@ -328,6 +336,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float* cam_pos,
 	const float tan_fovx, const float tan_fovy,
 	const bool prefiltered,
+	const int tile_id,
 	float* out_color,
 	float* out_depth,
 	float* out_alpha,
@@ -346,7 +355,16 @@ int CudaRasterizer::Rasterizer::forward(
 		radii = geomState.internal_radii;
 	}
 
-	dim3 tile_grid((width + BLOCK_X - 1) / BLOCK_X, (height + BLOCK_Y - 1) / BLOCK_Y, 1);
+	const dim3 tile_grid((width + BLOCK_X - 1) / BLOCK_X, (height + BLOCK_Y - 1) / BLOCK_Y, 1);
+	dim3 tile_id_grid(0, 0, 0);
+	if (tile_id >= 0)
+	{
+		if (tile_id >= (tile_grid.x * tile_grid.y))
+		{
+			throw std::runtime_error("Tile ID out of bounds!");
+		}
+		tile_id_grid = {tile_id % tile_grid.x, tile_id / tile_grid.x, 1};
+	}
 	dim3 block(BLOCK_X, BLOCK_Y, 1);
 
 	// Dynamically resize image-based auxiliary buffers during training
@@ -382,6 +400,7 @@ int CudaRasterizer::Rasterizer::forward(
 		geomState.cov3D,
 		geomState.rgb,
 		geomState.conic_opacity,
+		// geomState.comp,
 		tile_grid,
 		geomState.tiles_touched,
 		prefiltered
@@ -409,7 +428,8 @@ int CudaRasterizer::Rasterizer::forward(
 		binState.point_list_keys_unsorted,
 		binState.point_list_unsorted,
 		radii,
-		tile_grid)
+		tile_grid,
+		tile_id_grid)
 	CHECK_CUDA(, debug)
 
 	int bit = getHigherMsb(tile_grid.x * tile_grid.y);
