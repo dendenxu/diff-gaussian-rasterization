@@ -98,7 +98,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
-        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, alpha)
+        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, tile_mask, radii, sh, geomBuffer, binningBuffer, imgBuffer, alpha)
         return color, depth, alpha, radii
 
     @staticmethod
@@ -107,7 +107,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
         raster_settings = ctx.raster_settings
-        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, alpha = ctx.saved_tensors
+        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, tile_mask, radii, sh, geomBuffer, binningBuffer, imgBuffer, alpha = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
@@ -214,6 +214,9 @@ class GaussianRasterizer(nn.Module):
             cov3D_precomp = torch.Tensor([])
         if tile_mask is None:
             tile_mask = torch.Tensor([]).bool()
+        # TODO: in sampler `typed` will change the type of the tensor
+        if tile_mask.dtype != torch.bool:
+            tile_mask = tile_mask.bool()
 
         # Invoke C++/CUDA rasterization routine
         return rasterize_gaussians(
