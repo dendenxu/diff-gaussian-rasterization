@@ -27,6 +27,7 @@ def rasterize_gaussians(
     scales,
     rotations,
     cov3Ds_precomp,
+    tile_mask,
     raster_settings,
 ):
     return _RasterizeGaussians.apply(
@@ -38,6 +39,7 @@ def rasterize_gaussians(
         scales,
         rotations,
         cov3Ds_precomp,
+        tile_mask,
         raster_settings,
     )
 
@@ -53,6 +55,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         scales,
         rotations,
         cov3Ds_precomp,
+        tile_mask,
         raster_settings,
     ):
 
@@ -66,6 +69,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             rotations,
             raster_settings.scale_modifier,
             cov3Ds_precomp,
+            tile_mask,
             raster_settings.viewmatrix,
             raster_settings.projmatrix,
             raster_settings.tanfovx,
@@ -76,7 +80,6 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.sh_degree,
             raster_settings.campos,
             raster_settings.prefiltered,
-            raster_settings.tile_id,
             raster_settings.debug
         )
 
@@ -91,7 +94,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 raise ex
         else:
             num_rendered, color, depth, alpha, radii, geomBuffer, binningBuffer, imgBuffer = _C.rasterize_gaussians(*args)
-
+        print(num_rendered)
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
@@ -122,7 +125,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 grad_out_color, 
                 grad_out_depth,
                 grad_out_alpha,
-                sh, 
+                sh,
                 raster_settings.sh_degree, 
                 raster_settings.campos,
                 geomBuffer,
@@ -170,7 +173,6 @@ class GaussianRasterizationSettings(NamedTuple):
     sh_degree : int
     campos : torch.Tensor
     prefiltered : bool
-    tile_id : int
     debug : bool
 
 class GaussianRasterizer(nn.Module):
@@ -189,7 +191,7 @@ class GaussianRasterizer(nn.Module):
             
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None):
+    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, tile_mask = None):
         
         raster_settings = self.raster_settings
 
@@ -210,6 +212,8 @@ class GaussianRasterizer(nn.Module):
             rotations = torch.Tensor([])
         if cov3D_precomp is None:
             cov3D_precomp = torch.Tensor([])
+        if tile_mask is None:
+            tile_mask = torch.Tensor([]).bool()
 
         # Invoke C++/CUDA rasterization routine
         return rasterize_gaussians(
@@ -221,6 +225,7 @@ class GaussianRasterizer(nn.Module):
             scales, 
             rotations,
             cov3D_precomp,
+            tile_mask,
             raster_settings, 
         )
 

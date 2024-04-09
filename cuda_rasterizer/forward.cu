@@ -107,14 +107,13 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 	glm::mat3 cov = glm::transpose(T) * glm::transpose(Vrk) * T;
 
 	// compute unblured determinant
-	float det_orig = cov[0][0] * cov[1][1] - cov[0][1] * cov[0][1];
+	// float det_orig = cov[0][0] * cov[1][1] - cov[0][1] * cov[0][1];
 
 	// Apply low-pass filter: every Gaussian should be at least
 	// one pixel wide/high. Discard 3rd row and column.
 	cov[0][0] += 0.3f;
 	cov[1][1] += 0.3f;
 	return { float(cov[0][0]), float(cov[0][1]), float(cov[1][1]) };
-	// return { float(cov[0][0]), float(cov[0][1]), float(cov[1][1]), det_orig };
 }
 
 // Forward method for converting scale and rotation properties of each
@@ -167,6 +166,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float* shs,
 	bool* clamped,
 	const float* cov3D_precomp,
+	const bool* tile_mask,
 	const float* colors_precomp,
 	const float* viewmatrix,
 	const float* projmatrix,
@@ -180,7 +180,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float* cov3Ds,
 	float* rgb,
 	float4* conic_opacity,
-	// float* comp,
 	const dim3 grid,
 	uint32_t* tiles_touched,
 	bool prefiltered)
@@ -220,16 +219,12 @@ __global__ void preprocessCUDA(int P, int D, int M,
 
 	// Compute 2D screen-space covariance matrix and unblurred determinant.
 	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
-	// float4 cov_det = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
-	// float3 cov = { cov_det.x, cov_det.y, cov_det.z };
-	// float det_orig = cov_det.w;
 
 	// Invert covariance (EWA algorithm)
 	float det = (cov.x * cov.z - cov.y * cov.y);
 	if (det == 0.0f || cov.x < 0.0f || cov.z < 0.0f)
 		return;
 	float det_inv = 1.f / det;
-	// comp[idx] = sqrt(max(0.f, det_orig * det_inv));
 	float3 conic = { cov.z * det_inv, -cov.y * det_inv, cov.x * det_inv };
 
 	// Compute extent in screen space (by finding eigenvalues of
@@ -247,6 +242,24 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float2 point_image = { ndc2Pix(p_proj.x, W), ndc2Pix(p_proj.y, H) };
 	uint2 rect_min, rect_max;
 	getRect(point_image, my_radius, rect_min, rect_max, grid);
+	// perform tile mask check
+	if (tile_mask != nullptr)
+	{
+		bool hit = false;
+		for (int y = rect_min.y; y < rect_max.y; y++)
+		{
+			for (int x = rect_min.x; x < rect_max.x; x++)
+			{
+				if (tile_mask[y * grid.x + x])
+				{
+					hit = true;
+					break;
+				}
+			}
+		}
+		if (!hit)
+			return;
+	}
 	if ((rect_max.x - rect_min.x) * (rect_max.y - rect_min.y) == 0)
 		return;
 
@@ -432,6 +445,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* shs,
 	bool* clamped,
 	const float* cov3D_precomp,
+	const bool* tile_mask,
 	const float* colors_precomp,
 	const float* viewmatrix,
 	const float* projmatrix,
@@ -445,7 +459,6 @@ void FORWARD::preprocess(int P, int D, int M,
 	float* cov3Ds,
 	float* rgb,
 	float4* conic_opacity,
-	// float* comp,
 	const dim3 grid,
 	uint32_t* tiles_touched,
 	bool prefiltered)
@@ -460,6 +473,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		shs,
 		clamped,
 		cov3D_precomp,
+		tile_mask,
 		colors_precomp,
 		viewmatrix, 
 		projmatrix,
@@ -473,7 +487,6 @@ void FORWARD::preprocess(int P, int D, int M,
 		cov3Ds,
 		rgb,
 		conic_opacity,
-		// comp,
 		grid,
 		tiles_touched,
 		prefiltered

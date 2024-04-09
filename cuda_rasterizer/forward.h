@@ -30,6 +30,7 @@ namespace FORWARD
 		const float* shs,
 		bool* clamped,
 		const float* cov3D_precomp,
+		const bool* tile_mask,
 		const float* colors_precomp,
 		const float* viewmatrix,
 		const float* projmatrix,

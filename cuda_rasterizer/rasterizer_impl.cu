@@ -78,7 +78,7 @@ __global__ void duplicateWithKeys(
 	uint32_t* gaussian_values_unsorted,
 	int* radii,
 	dim3 grid,
-	dim3 id_grid)
+	const bool* tile_mask)
 {
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P)
@@ -102,13 +102,13 @@ __global__ void duplicateWithKeys(
 		{
 			for (int x = rect_min.x; x < rect_max.x; x++)
 			{
-				if (id_grid.z == 1 && (x != id_grid.x || y != id_grid.y))
+				uint64_t key = y * grid.x + x;
+				if (tile_mask != nullptr && !tile_mask[key])
 				{
 					continue;
 				}
-				else 
+				else
 				{
-					uint64_t key = y * grid.x + x;
 					key <<= 32;
 					key |= *((uint32_t*)&depths[idx]);
 					gaussian_keys_unsorted[off] = key;
@@ -331,12 +331,12 @@ int CudaRasterizer::Rasterizer::forward(
 	const float scale_modifier,
 	const float* rotations,
 	const float* cov3D_precomp,
+	const bool* tile_mask,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* cam_pos,
 	const float tan_fovx, const float tan_fovy,
 	const bool prefiltered,
-	const int tile_id,
 	float* out_color,
 	float* out_depth,
 	float* out_alpha,
@@ -356,15 +356,6 @@ int CudaRasterizer::Rasterizer::forward(
 	}
 
 	const dim3 tile_grid((width + BLOCK_X - 1) / BLOCK_X, (height + BLOCK_Y - 1) / BLOCK_Y, 1);
-	dim3 tile_id_grid(0, 0, 0);
-	if (tile_id >= 0)
-	{
-		if (tile_id >= (tile_grid.x * tile_grid.y))
-		{
-			throw std::runtime_error("Tile ID out of bounds!");
-		}
-		tile_id_grid = {tile_id % tile_grid.x, tile_id / tile_grid.x, 1};
-	}
 	dim3 block(BLOCK_X, BLOCK_Y, 1);
 
 	// Dynamically resize image-based auxiliary buffers during training
@@ -388,6 +379,7 @@ int CudaRasterizer::Rasterizer::forward(
 		shs,
 		geomState.clamped,
 		cov3D_precomp,
+		tile_mask,
 		colors_precomp,
 		viewmatrix, projmatrix,
 		(glm::vec3*)cam_pos,
@@ -429,7 +421,7 @@ int CudaRasterizer::Rasterizer::forward(
 		binState.point_list_unsorted,
 		radii,
 		tile_grid,
-		tile_id_grid)
+		tile_mask)
 	CHECK_CUDA(, debug)
 
 	int bit = getHigherMsb(tile_grid.x * tile_grid.y);
