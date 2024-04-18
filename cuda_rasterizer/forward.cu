@@ -110,8 +110,8 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 
 	// Apply low-pass filter: every Gaussian should be at least
 	// one pixel wide/high. Discard 3rd row and column.
-	cov[0][0] += 0.3f;
-	cov[1][1] += 0.3f;
+	// cov[0][0] += 0.3f;
+	// cov[1][1] += 0.3f;
 	return { float(cov[0][0]), float(cov[0][1]), float(cov[1][1]) };
 }
 
@@ -241,25 +241,31 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float2 point_image = { ndc2Pix(p_proj.x, W), ndc2Pix(p_proj.y, H) };
 	uint2 rect_min, rect_max;
 	getRect(point_image, my_radius, rect_min, rect_max, grid);
+
 	// perform tile mask check
-	if (tile_mask != nullptr)
-	{
-		bool hit = false;
+	if (tile_mask != nullptr){
+		int touched = 0;
 		for (int y = rect_min.y; y < rect_max.y; y++)
 		{
 			for (int x = rect_min.x; x < rect_max.x; x++)
 			{
 				if (tile_mask[y * grid.x + x])
 				{
-					hit = true;
+					touched += 1;
 					break;
 				}
 			}
 		}
-		if (!hit)
+		if (!touched)
 			return;
+		else {
+			tiles_touched[idx] = touched;
+		}
+	} else {
+		tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
 	}
-	if ((rect_max.x - rect_min.x) * (rect_max.y - rect_min.y) == 0)
+
+	if (tiles_touched[idx] == 0)
 		return;
 
 	// If colors have been precomputed, use them, otherwise convert
@@ -276,9 +282,9 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	depths[idx] = p_view.z;
 	radii[idx] = my_radius;
 	points_xy_image[idx] = point_image;
+
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
-	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
 }
 
 // Main rasterization method. Collaboratively works on one tile per
