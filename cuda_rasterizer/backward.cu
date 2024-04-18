@@ -429,6 +429,7 @@ renderCUDA(
 	const float* __restrict__ dL_dpixel_depths,
 	const float* __restrict__ dL_dpixel_alphas,
 	float3* __restrict__ dL_dmean2D,
+	float3* __restrict__ dL_dmean2D_abs,
 	float4* __restrict__ dL_dconic2D,
 	float* __restrict__ dL_dopacity,
 	float* __restrict__ dL_dcolors,
@@ -587,6 +588,10 @@ renderCUDA(
 			atomicAdd(&dL_dmean2D[global_id].x, dL_dG * dG_ddelx * ddelx_dx);
 			atomicAdd(&dL_dmean2D[global_id].y, dL_dG * dG_ddely * ddely_dy);
 
+			//Update abs gradients w.r.t 2D mean position of the Gaussian
+			atomicAdd(&dL_dmean2D_abs[global_id].x, fabsf(dL_dG * dG_ddelx * ddelx_dx));
+			atomicAdd(&dL_dmean2D_abs[global_id].y, fabsf(dL_dG * dG_ddely * ddely_dy));
+
 			// Update gradients w.r.t. 2D covariance (2x2 matrix, symmetric)
 			atomicAdd(&dL_dconic2D[global_id].x, -0.5f * gdx * d.x * dL_dG);
 			atomicAdd(&dL_dconic2D[global_id].y, -0.5f * gdx * d.y * dL_dG);
@@ -682,6 +687,7 @@ void BACKWARD::render(
 	const float* dL_dpixel_depths,
 	const float* dL_dpixel_alphas,
 	float3* dL_dmean2D,
+	float3* dL_dmean2D_abs,
 	float4* dL_dconic2D,
 	float* dL_dopacity,
 	float* dL_dcolors,
@@ -702,6 +708,7 @@ void BACKWARD::render(
 		dL_dpixel_depths,
 		dL_dpixel_alphas,
 		dL_dmean2D,
+		dL_dmean2D_abs,
 		dL_dconic2D,
 		dL_dopacity,
 		dL_dcolors,
