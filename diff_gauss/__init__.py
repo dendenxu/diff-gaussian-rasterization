@@ -268,9 +268,9 @@ class _ComputeCov4D(torch.autograd.Function):
         rotation_l,
         rotation_r
     ):
-        _cov, _ms, _cov_t = _C.compute_cov_4D(scaling_xyzt, rotation_l, rotation_r)
+        cov, ms, cov_t = _C.compute_cov_4D(scaling_xyzt, rotation_l, rotation_r)
         ctx.save_for_backward(scaling_xyzt, rotation_l, rotation_r)
-        return _cov, _ms, _cov_t
+        return cov, ms, cov_t
 
     @staticmethod
     def backward(ctx, grad_out_cov, grad_out_ms, grad_out_cov_t):

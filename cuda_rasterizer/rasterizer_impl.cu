@@ -150,18 +150,18 @@ void CudaRasterizer::Rasterizer::computeCov4D(int P,
 	const float* scaling_xyzt,
 	const float* rotation_l,
 	const float* rotation_r,
-	float* _cov,
-	float* _ms,
-	float* _cov_t)
+	float* cov,
+	float* ms,
+	float* cov_t)
 {
 	FORWARD::computeCov4D(
 		P,
 		(glm::vec4*)scaling_xyzt,
 		(glm::vec4*)rotation_l,
 		(glm::vec4*)rotation_r,
-		_cov,
-		(glm::vec3*)_ms,
-		_cov_t);
+		cov,
+		(glm::vec3*)ms,
+		cov_t);
 }
 
 void CudaRasterizer::Rasterizer::computeCov4DBackward(int P,

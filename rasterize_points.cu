@@ -238,9 +238,9 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4D(
 { 
   const int P = scaling_xyzt.size(0);
   
-  torch::Tensor _cov = torch::full({P, 6}, false, scaling_xyzt.options());
-  torch::Tensor _ms = torch::full({P, 3}, false, scaling_xyzt.options());
-  torch::Tensor _cov_t = torch::full({P, 1}, false, scaling_xyzt.options());
+  torch::Tensor cov = torch::full({P, 6}, false, scaling_xyzt.options());
+  torch::Tensor ms = torch::full({P, 3}, false, scaling_xyzt.options());
+  torch::Tensor cov_t = torch::full({P, 1}, false, scaling_xyzt.options());
  
   if(P != 0)
   {
@@ -248,12 +248,12 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4D(
 		scaling_xyzt.contiguous().data_ptr<float>(),
 		rotation_l.contiguous().data_ptr<float>(),
 		rotation_r.contiguous().data_ptr<float>(),
-		_cov.contiguous().data_ptr<float>(),
-		_ms.contiguous().data_ptr<float>(),
-		_cov_t.contiguous().data_ptr<float>());
+		cov.contiguous().data_ptr<float>(),
+		ms.contiguous().data_ptr<float>(),
+		cov_t.contiguous().data_ptr<float>());
   }
   
-  return std::make_tuple(_cov, _ms, _cov_t);
+  return std::make_tuple(cov, ms, cov_t);
 }
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4DBackward(

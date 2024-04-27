@@ -69,9 +69,9 @@ namespace FORWARD
 		const glm::vec4* scaling_xyzt,
 		const glm::vec4* rotation_l,
 		const glm::vec4* rotation_r,
-		float* _cov,
-		glm::vec3* _ms,
-		float* _cov_t);
+		float* cov,
+		glm::vec3* ms,
+		float* cov_t);
 }
 
 

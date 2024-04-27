@@ -34,9 +34,9 @@ namespace CudaRasterizer
 			const float* scaling_xyzt,
 			const float* rotation_l,
 			const float* rotation_r,
-			float* _cov,
-			float* _ms,
-			float* _cov_t);
+			float* cov,
+			float* ms,
+			float* cov_t);
 
 		static void computeCov4DBackward(
 			int P,
