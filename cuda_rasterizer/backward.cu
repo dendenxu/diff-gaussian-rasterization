@@ -457,6 +457,14 @@ renderCUDA(
 	__shared__ float collected_colors[C * BLOCK_SIZE];
 	__shared__ float collected_depths[BLOCK_SIZE];
 
+	// Heuristic, gaussians are likely to be updated by the same block (same tile)
+	// Thus it should be faster to first aggregate the gradients inside this block and update them to the global memory in just one go
+	__shared__ float3 s_dL_dmean2D[BLOCK_SIZE];
+	__shared__ float4 s_dL_dconic2D[BLOCK_SIZE];
+	__shared__ float s_dL_dopacity[BLOCK_SIZE];
+	__shared__ float s_dL_dcolors[C * BLOCK_SIZE];
+	__shared__ float s_dL_ddepths[BLOCK_SIZE];
+
 	// In the forward, we stored the final value for T, the
 	// product of all (1 - alpha) factors. 
 	const float T_final = inside ? (1 - accum_alphas[pix_id]) : 0;
@@ -504,6 +512,17 @@ renderCUDA(
 			for (int i = 0; i < C; i++)
 				collected_colors[i * BLOCK_SIZE + block.thread_rank()] = colors[coll_id * C + i];
 			collected_depths[block.thread_rank()] = depths[coll_id];
+
+			// Shared gradient accumulation in this block
+			s_dL_dmean2D[block.thread_rank()].x = 0.0f;
+			s_dL_dmean2D[block.thread_rank()].y = 0.0f;
+			s_dL_dconic2D[block.thread_rank()].x = 0.0f;
+			s_dL_dconic2D[block.thread_rank()].y = 0.0f;
+			s_dL_dconic2D[block.thread_rank()].w = 0.0f;
+			for (int i = 0; i < C; i++)
+				s_dL_dcolors[i * BLOCK_SIZE + block.thread_rank()] = 0.0f;
+			s_dL_dopacity[block.thread_rank()] = 0.0f;
+			s_dL_ddepths[block.thread_rank()] = 0.0f;
 		}
 		block.sync();
 
@@ -550,13 +569,13 @@ renderCUDA(
 				// Update the gradients w.r.t. color of the Gaussian. 
 				// Atomic, since this pixel is just one of potentially
 				// many that were affected by this Gaussian.
-				atomicAdd(&(dL_dcolors[global_id * C + ch]), dchannel_dcolor * dL_dchannel);
+				atomicAdd(&(s_dL_dcolors[ch * BLOCK_SIZE + j]), dchannel_dcolor * dL_dchannel);
 			}
 			const float dep = collected_depths[j];
 			accum_red = last_alpha * last_depth + (1.f - last_alpha) * accum_red;
 			last_depth = dep;
 			dL_dalpha += (dep-accum_red) * dL_dpixel_depth;
-			atomicAdd(&(dL_ddepths[global_id]), dpixel_depth_ddepth * dL_dpixel_depth);
+			atomicAdd(&(s_dL_ddepths[j]), dpixel_depth_ddepth * dL_dpixel_depth);
 			
 			accum_rea = last_alpha + (1.f - last_alpha) * accum_rea;
 			dL_dalpha += (1 - accum_rea) * dL_dpixel_alpha;
@@ -584,17 +603,35 @@ renderCUDA(
 			const float dG_ddely = -gdy * con_o.z - gdx * con_o.y;
 
 			// Update gradients w.r.t. 2D mean position of the Gaussian
-			atomicAdd(&dL_dmean2D[global_id].x, dL_dG * dG_ddelx * ddelx_dx);
-			atomicAdd(&dL_dmean2D[global_id].y, dL_dG * dG_ddely * ddely_dy);
+			atomicAdd(&s_dL_dmean2D[j].x, dL_dG * dG_ddelx * ddelx_dx);
+			atomicAdd(&s_dL_dmean2D[j].y, dL_dG * dG_ddely * ddely_dy);
 
 			// Update gradients w.r.t. 2D covariance (2x2 matrix, symmetric)
-			atomicAdd(&dL_dconic2D[global_id].x, -0.5f * gdx * d.x * dL_dG);
-			atomicAdd(&dL_dconic2D[global_id].y, -0.5f * gdx * d.y * dL_dG);
-			atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG);
+			atomicAdd(&s_dL_dconic2D[j].x, -0.5f * gdx * d.x * dL_dG);
+			atomicAdd(&s_dL_dconic2D[j].y, -0.5f * gdx * d.y * dL_dG);
+			atomicAdd(&s_dL_dconic2D[j].w, -0.5f * gdy * d.y * dL_dG);
 
 			// Update gradients w.r.t. opacity of the Gaussian
-			atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);
+			atomicAdd(&(s_dL_dopacity[j]), G * dL_dalpha);
 		}
+		block.sync();
+
+		if (range.x + progress < range.y)
+		{
+			const int global_id = point_list[range.y - progress - 1];
+
+			// Shared gradient accumulation in this block
+			atomicAdd(&dL_dmean2D[global_id].x, s_dL_dmean2D[block.thread_rank()].x);
+			atomicAdd(&dL_dmean2D[global_id].y, s_dL_dmean2D[block.thread_rank()].y);
+			atomicAdd(&dL_dconic2D[global_id].x, s_dL_dconic2D[block.thread_rank()].x);
+			atomicAdd(&dL_dconic2D[global_id].y, s_dL_dconic2D[block.thread_rank()].y);
+			atomicAdd(&dL_dconic2D[global_id].w, s_dL_dconic2D[block.thread_rank()].w);
+			for (int i = 0; i < C; i++)
+				atomicAdd(&(dL_dcolors[global_id * C + i]), s_dL_dcolors[i * BLOCK_SIZE + block.thread_rank()]);
+			atomicAdd(&(dL_dopacity[global_id]), s_dL_dopacity[block.thread_rank()]);
+			atomicAdd(&(dL_ddepths[global_id]), s_dL_ddepths[block.thread_rank()]);
+		}
+
 	}
 }
 
