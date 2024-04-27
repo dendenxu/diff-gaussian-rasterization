@@ -106,7 +106,6 @@ namespace CudaRasterizer
 			const float* dL_dpix_depth,
 			const float* dL_dpix_dalpha,
 			float* dL_dmean2D,
-			float* dL_dmean2D_abs,
 			float* dL_dconic,
 			float* dL_dopacity,
 			float* dL_dcolor,
