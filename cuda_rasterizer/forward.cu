@@ -194,8 +194,9 @@ __global__ void preprocessCUDA(int P, int D, int M,
 
 	// Perform near culling, quit if outside.
 	float3 p_view;
-	if (!in_frustum(idx, orig_points, viewmatrix, projmatrix, prefiltered, p_view) || opacities[idx] < 0.0001f)
+	if (!in_frustum(idx, orig_points, viewmatrix, projmatrix, prefiltered, p_view) || opacities[idx] < 0.0001f) {
 		return;
+	}
 
 	// Transform point by projecting
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
@@ -221,8 +222,11 @@ __global__ void preprocessCUDA(int P, int D, int M,
 
 	// Invert covariance (EWA algorithm)
 	float det = (cov.x * cov.z - cov.y * cov.y);
-	if (det == 0.0f || cov.x < 0.0f || cov.z < 0.0f)
+	if (det == 0.0f || cov.x < 0.0f || cov.z < 0.0f) {
+		// Illegal cov matrix, this point should be pruned with zero gradients
+		radii[idx] = -1.0;
 		return;
+	}
 	float det_inv = 1.f / det;
 	float3 conic = { cov.z * det_inv, -cov.y * det_inv, cov.x * det_inv };
 
@@ -233,8 +237,11 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float mid = 0.5f * (cov.x + cov.z);
 	float lambda1 = mid + sqrt(max(0.1f, mid * mid - det));
 	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
-	if (lambda1 < 0 || lambda2 < 0)
+	if (lambda1 < 0 || lambda2 < 0) {
+		// Illegal cov matrix, this point should be pruned with zero gradients
+		radii[idx] = -1.0;
 		return;
+	}
 	float my_radius = ceil(3.f * sqrt(max(lambda1, lambda2)));
 
 	// float my_radius = max(0.0f, ceil(3.f * sqrt(max(lambda1, lambda2))));
@@ -256,8 +263,11 @@ __global__ void preprocessCUDA(int P, int D, int M,
 				}
 			}
 		}
-		if (!touched)
+		if (!touched) {
+			// Not rendered since outside of tile mask
+			radii[idx] = -2.0;
 			return;
+		}
 		else {
 			tiles_touched[idx] = touched;
 		}
@@ -265,8 +275,11 @@ __global__ void preprocessCUDA(int P, int D, int M,
 		tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
 	}
 
-	if (tiles_touched[idx] == 0)
+	if (tiles_touched[idx] == 0) {
+		// Not rendered since outside of tile mask
+		radii[idx] = -2.0;
 		return;
+	}
 
 	// If colors have been precomputed, use them, otherwise convert
 	// spherical harmonics coefficients to RGB color.
