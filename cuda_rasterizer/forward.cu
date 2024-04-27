@@ -154,6 +154,102 @@ __device__ void computeCov3D(const glm::vec3 scale, float mod, const glm::vec4 r
 	cov3D[5] = Sigma[2][2];
 }
 
+__device__ void computeCov4D(const glm::vec4 scaling_xyzt, const glm::vec4 rotation_l, const glm::vec4 rotation_r, float* _cov, glm::vec3 &_ms, float &_cov_t)
+{
+	// Create scaling matrix
+	glm::mat4 S = glm::mat4(1.0f);
+	S[0][0] = scaling_xyzt.x;
+	S[1][1] = scaling_xyzt.y;
+	S[2][2] = scaling_xyzt.z;
+	S[3][3] = scaling_xyzt.w;
+
+	float l = glm::dot(rotation_l, rotation_l);
+	const float a = rotation_l.x / l;
+	const float b = rotation_l.y / l;
+	const float c = rotation_l.z / l;
+	const float d = rotation_l.w / l;
+
+	l = glm::dot(rotation_r, rotation_r);
+	const float p = rotation_r.x / l;
+	const float q = rotation_r.y / l;
+	const float r = rotation_r.z / l;
+	const float s = rotation_r.w / l;
+
+	glm::mat4 M_l = glm::mat4(
+		a, -b, -c, -d,
+		b, a,-d, c,
+		c, d, a,-b,
+		d,-c, b, a
+	);
+
+	glm::mat4 M_r = glm::mat4(
+		p, q, r, s,
+		-q, p,-s, r,
+		-r, s, p,-q,
+		-s,-r, q, p
+	);
+	// glm stores in column major
+	glm::mat4 R = M_r * M_l;
+	glm::mat4 M = S * R;
+	glm::mat4 Sigma = glm::transpose(M) * M;
+	_cov_t = Sigma[3][3];
+
+	glm::mat3 cov11 = glm::mat3(Sigma);
+	glm::vec3 cov12 = glm::vec3(Sigma[0][3], Sigma[1][3], Sigma[2][3]);
+	glm::mat3 cov3D_condition = cov11 - glm::outerProduct(cov12, cov12) / _cov_t;
+
+	// Covariance is symmetric, only store upper right
+	_cov[0] = cov3D_condition[0][0];
+	_cov[1] = cov3D_condition[0][1];
+	_cov[2] = cov3D_condition[0][2];
+	_cov[3] = cov3D_condition[1][1];
+	_cov[4] = cov3D_condition[1][2];
+	_cov[5] = cov3D_condition[2][2];
+	_ms = cov12 / _cov_t;
+}
+
+
+__global__ void computeCov4DCUDA(int P,
+	const glm::vec4* scaling_xyzt,
+	const glm::vec4* rotation_l,
+	const glm::vec4* rotation_r,
+	float* _cov,
+	glm::vec3* _ms,
+	float* _cov_t)
+{
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+	computeCov4D(
+		scaling_xyzt[idx],
+		rotation_l[idx],
+		rotation_r[idx],
+		_cov + idx * 6,
+		_ms[idx],
+		_cov_t[idx]);
+}
+
+
+void FORWARD::computeCov4D(
+	int P,
+	const glm::vec4* scaling_xyzt,
+	const glm::vec4* rotation_l,
+	const glm::vec4* rotation_r,
+	float* _cov,
+	glm::vec3* _ms,
+	float* _cov_t
+) {
+	computeCov4DCUDA << <(P + 255) / 256, 256 >> > (
+		P,
+		scaling_xyzt,
+		rotation_l,
+		rotation_r,
+		_cov,
+		_ms,
+		_cov_t);
+}
+
+
 // Perform initial steps for each Gaussian prior to rasterization.
 template<int C>
 __global__ void preprocessCUDA(int P, int D, int M,

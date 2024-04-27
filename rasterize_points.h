@@ -70,3 +70,16 @@ torch::Tensor markVisible(
 		torch::Tensor& means3D,
 		torch::Tensor& viewmatrix,
 		torch::Tensor& projmatrix);
+
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4D(
+		torch::Tensor& scaling_xyzt,
+		torch::Tensor& rotation_l,
+		torch::Tensor& rotation_r);
+
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4DBackward(
+		torch::Tensor& scaling_xyzt,
+		torch::Tensor& rotation_l,
+		torch::Tensor& rotation_r,
+		torch::Tensor& dL_dcov,
+		torch::Tensor& dL_dms,
+		torch::Tensor& dL_dcov_t);

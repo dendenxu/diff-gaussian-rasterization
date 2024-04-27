@@ -230,3 +230,59 @@ torch::Tensor markVisible(
   
   return present;
 }
+
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4D(
+		torch::Tensor& scaling_xyzt,
+		torch::Tensor& rotation_l,
+		torch::Tensor& rotation_r)
+{ 
+  const int P = scaling_xyzt.size(0);
+  
+  torch::Tensor _cov = torch::full({P, 6}, false, scaling_xyzt.options());
+  torch::Tensor _ms = torch::full({P, 3}, false, scaling_xyzt.options());
+  torch::Tensor _cov_t = torch::full({P, 1}, false, scaling_xyzt.options());
+ 
+  if(P != 0)
+  {
+	CudaRasterizer::Rasterizer::computeCov4D(P,
+		scaling_xyzt.contiguous().data_ptr<float>(),
+		rotation_l.contiguous().data_ptr<float>(),
+		rotation_r.contiguous().data_ptr<float>(),
+		_cov.contiguous().data_ptr<float>(),
+		_ms.contiguous().data_ptr<float>(),
+		_cov_t.contiguous().data_ptr<float>());
+  }
+  
+  return std::make_tuple(_cov, _ms, _cov_t);
+}
+
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4DBackward(
+		torch::Tensor& scaling_xyzt,
+		torch::Tensor& rotation_l,
+		torch::Tensor& rotation_r,
+		torch::Tensor& dL_dcov,
+		torch::Tensor& dL_dms,
+		torch::Tensor& dL_dcov_t)
+{ 
+  const int P = scaling_xyzt.size(0);
+  
+  torch::Tensor dL_dscaling_xyzt = torch::full({P, 4}, false, scaling_xyzt.options());
+  torch::Tensor dL_drotation_l = torch::full({P, 4}, false, scaling_xyzt.options());
+  torch::Tensor dL_drotation_r = torch::full({P, 4}, false, scaling_xyzt.options());
+ 
+  if(P != 0)
+  {
+	CudaRasterizer::Rasterizer::computeCov4DBackward(P,
+		scaling_xyzt.contiguous().data_ptr<float>(),
+		rotation_l.contiguous().data_ptr<float>(),
+		rotation_r.contiguous().data_ptr<float>(),
+		dL_dcov.contiguous().data_ptr<float>(),
+		dL_dms.contiguous().data_ptr<float>(),
+		dL_dcov_t.contiguous().data_ptr<float>(),
+		dL_dscaling_xyzt.contiguous().data_ptr<float>(),
+		dL_drotation_l.contiguous().data_ptr<float>(),
+		dL_drotation_r.contiguous().data_ptr<float>());
+  }
+  
+  return std::make_tuple(dL_dscaling_xyzt, dL_drotation_l, dL_drotation_r);
+}

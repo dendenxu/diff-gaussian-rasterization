@@ -64,6 +64,14 @@ namespace FORWARD
 		const float* bg_color,
 		float* out_color,
 		float* out_depth);
+
+	void computeCov4D(int P,
+		const glm::vec4* scaling_xyzt,
+		const glm::vec4* rotation_l,
+		const glm::vec4* rotation_r,
+		float* _cov,
+		glm::vec3* _ms,
+		float* _cov_t);
 }
 
 

@@ -250,3 +250,48 @@ def mark_visible(positions: torch.Tensor, viewmatrix: torch.Tensor, projmatrix: 
             projmatrix)
 
     return visible
+
+
+def compute_cov_4D(scaling_xyzt: torch.Tensor, rotation_l: torch.Tensor, rotation_r: torch.Tensor):
+    # Mark visible points (based on frustum culling for camera) with a boolean
+    return _ComputeCov4D.apply(
+        scaling_xyzt,
+        rotation_l,
+        rotation_r)
+
+
+class _ComputeCov4D(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        scaling_xyzt,
+        rotation_l,
+        rotation_r
+    ):
+        _cov, _ms, _cov_t = _C.compute_cov_4D(scaling_xyzt, rotation_l, rotation_r)
+        ctx.save_for_backward(scaling_xyzt, rotation_l, rotation_r)
+        return _cov, _ms, _cov_t
+
+    @staticmethod
+    def backward(ctx, grad_out_cov, grad_out_ms, grad_out_cov_t):
+
+        # Restore necessary values from context
+        scaling_xyzt, rotation_l, rotation_r= ctx.saved_tensors
+
+        # Restructure args as C++ method expects them
+        grad_scaling_xyzt, grad_rotation_l, grad_rotation_r = _C.compute_cov_4D_backward(
+            scaling_xyzt,
+            rotation_l,
+            rotation_r,
+            grad_out_cov,
+            grad_out_ms,
+            grad_out_cov_t,
+        )
+
+        grads = (
+            grad_scaling_xyzt,
+            grad_rotation_l,
+            grad_rotation_r,
+        )
+
+        return grads

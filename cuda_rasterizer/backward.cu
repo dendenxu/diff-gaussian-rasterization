@@ -340,6 +340,156 @@ __device__ void computeCov3D(int idx, const glm::vec3 scale, float mod, const gl
 	*dL_drot = float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w };//dnormvdv(float4{ rot.x, rot.y, rot.z, rot.w }, float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w });
 }
 
+
+
+// Backward pass for the conversion of scale and rotation to a
+// 3D covariance matrix for each Gaussian.
+__device__ void computeCov4DBackward(
+	const glm::vec4 scaling_xyzt,
+	const glm::vec4 rotation_l, 
+	const glm::vec4 rotation_r,
+	const float* dL_dcov, 
+	const glm::vec3 dL_dms, 
+	const float dL_dcov_t,
+	glm::vec4 &dL_dscaling_xyzt,
+	glm::vec4 &dL_drotation_l, 
+	glm::vec4 &dL_drotation_r)
+{
+	glm::mat4 S = glm::mat4(1.0f);
+	S[0][0] = scaling_xyzt.x;
+	S[1][1] = scaling_xyzt.y;
+	S[2][2] = scaling_xyzt.z;
+	S[3][3] = scaling_xyzt.w;
+
+	float l = glm::dot(rotation_l, rotation_l);
+	const float a = rotation_l.x / l;
+	const float b = rotation_l.y / l;
+	const float c = rotation_l.z / l;
+	const float d = rotation_l.w / l;
+
+	l = glm::dot(rotation_r, rotation_r);
+	const float p = rotation_r.x / l;
+	const float q = rotation_r.y / l;
+	const float r = rotation_r.z / l;
+	const float s = rotation_r.w / l;
+
+	glm::mat4 M_l = glm::mat4(
+		a, -b, -c, -d,
+		b, a,-d, c,
+		c, d, a,-b,
+		d,-c, b, a
+	);
+
+	glm::mat4 M_r = glm::mat4(
+		p, q, r, s,
+		-q, p,-s, r,
+		-r, s, p,-q,
+		-s,-r, q, p
+	);
+	// glm stores in column major
+	glm::mat4 R = M_r * M_l;
+	glm::mat4 M = S * R;
+
+    glm::mat4 Sigma = glm::transpose(M) * M;
+
+	float cov_t = Sigma[3][3];
+
+    glm::mat3 cov11 = glm::mat3(Sigma);
+    glm::vec3 cov12 = glm::vec3(Sigma[3][0],Sigma[3][1],Sigma[3][2]);
+
+	glm::vec3 dL_dcov12 = dL_dms / cov_t;
+
+    glm::mat4 dL_dSigma = glm::mat4(
+		dL_dcov[0], 0.5f * dL_dcov[1], 0.5f * dL_dcov[2], 0.5f * dL_dcov12[0],
+		0.5f * dL_dcov[1], dL_dcov[3], 0.5f * dL_dcov[4], 0.5f * dL_dcov12[1],
+		0.5f * dL_dcov[2], 0.5f * dL_dcov[4], dL_dcov[5], 0.5f * dL_dcov12[2],
+		0.5f * dL_dcov12[0], 0.5f * dL_dcov12[1], 0.5f * dL_dcov12[2], dL_dcov_t
+	);
+	// Compute loss gradient w.r.t. matrix M
+	// dSigma_dM = 2 * M
+	glm::mat4 dL_dM = 2.0f * M * dL_dSigma;
+
+	glm::mat4 Rt = glm::transpose(R);
+	glm::mat4 dL_dMt = glm::transpose(dL_dM);
+
+	// Gradients of loss w.r.t. scale
+	dL_dscaling_xyzt.x = glm::dot(Rt[0], dL_dMt[0]);
+	dL_dscaling_xyzt.y = glm::dot(Rt[1], dL_dMt[1]);
+	dL_dscaling_xyzt.z = glm::dot(Rt[2], dL_dMt[2]);
+	dL_dscaling_xyzt.w = glm::dot(Rt[3], dL_dMt[3]);
+
+	dL_dMt[0] *= scaling_xyzt.x;
+	dL_dMt[1] *= scaling_xyzt.y;
+	dL_dMt[2] *= scaling_xyzt.z;
+	dL_dMt[3] *= scaling_xyzt.w;
+
+	glm::mat4 dL_dml_t = dL_dMt * M_r;
+	// 	dL_dml_t = glm::transpose(dL_dml_t);
+	dL_drotation_l.x = dL_dml_t[0][0] + dL_dml_t[1][1] + dL_dml_t[2][2] + dL_dml_t[3][3];
+	dL_drotation_l.y = dL_dml_t[0][1] - dL_dml_t[1][0] + dL_dml_t[2][3] - dL_dml_t[3][2];
+	dL_drotation_l.z = dL_dml_t[0][2] - dL_dml_t[1][3] - dL_dml_t[2][0] + dL_dml_t[3][1];
+	dL_drotation_l.w = dL_dml_t[0][3] + dL_dml_t[1][2] - dL_dml_t[2][1] - dL_dml_t[3][0];
+
+	glm::mat4 dL_dmr_t = M_l * dL_dMt;
+	dL_drotation_r.x = dL_dmr_t[0][0] + dL_dmr_t[1][1] + dL_dmr_t[2][2] + dL_dmr_t[3][3];
+	dL_drotation_r.y = -dL_dmr_t[0][1] + dL_dmr_t[1][0] + dL_dmr_t[2][3] - dL_dmr_t[3][2];
+	dL_drotation_r.z = -dL_dmr_t[0][2] - dL_dmr_t[1][3] + dL_dmr_t[2][0] + dL_dmr_t[3][1];
+	dL_drotation_r.w = -dL_dmr_t[0][3] + dL_dmr_t[1][2] - dL_dmr_t[2][1] + dL_dmr_t[3][0];
+
+}
+
+__global__ void computeCov4DBackwardCUDA(int P,
+	const glm::vec4* scaling_xyzt,
+	const glm::vec4* rotation_l,
+	const glm::vec4* rotation_r,
+	const float* dL_dcov3Ds, 
+	const glm::vec3* dL_dmean_shifts, 
+	const float* dL_dcov_ts,
+	glm::vec4* dL_dscaling_xyzt,
+	glm::vec4* dL_drotation_l, 
+	glm::vec4* dL_drotation_r)
+{
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+	computeCov4DBackward(
+		scaling_xyzt[idx],
+		rotation_l[idx],
+		rotation_r[idx],
+		dL_dcov3Ds + idx * 6,
+		dL_dmean_shifts[idx],
+		dL_dcov_ts[idx],
+		dL_dscaling_xyzt[idx],
+		dL_drotation_l[idx],
+		dL_drotation_r[idx]);
+}
+
+
+void BACKWARD::computeCov4DBackward(
+	int P,
+	const glm::vec4* scaling_xyzt,
+	const glm::vec4* rotation_l,
+	const glm::vec4* rotation_r,
+	const float* dL_dcov3Ds, 
+	const glm::vec3* dL_dmean_shifts, 
+	const float* dL_dcov_ts,
+	glm::vec4* dL_dscaling_xyzt,
+	glm::vec4* dL_drotation_l, 
+	glm::vec4* dL_drotation_r)
+{
+	computeCov4DBackwardCUDA << <(P + 255) / 256, 256 >> > (
+		P,
+		scaling_xyzt,
+		rotation_l,
+		rotation_r,
+		dL_dcov3Ds,
+		dL_dmean_shifts,
+		dL_dcov_ts,
+		dL_dscaling_xyzt,
+		dL_drotation_l,
+		dL_drotation_r);
+}
+
 // Backward pass of the preprocessing steps, except
 // for the covariance computation and inversion
 // (those are handled by a previous kernel call)
@@ -451,7 +601,6 @@ renderCUDA(
 	bool done = !inside;
 	int toDo = range.y - range.x;
 
-	__shared__ int collected_id[BLOCK_SIZE];
 	__shared__ float2 collected_xy[BLOCK_SIZE];
 	__shared__ float4 collected_conic_opacity[BLOCK_SIZE];
 	__shared__ float collected_colors[C * BLOCK_SIZE];
@@ -506,7 +655,6 @@ renderCUDA(
 		if (range.x + progress < range.y)
 		{
 			const int coll_id = point_list[range.y - progress - 1];
-			collected_id[block.thread_rank()] = coll_id;
 			collected_xy[block.thread_rank()] = points_xy_image[coll_id];
 			collected_conic_opacity[block.thread_rank()] = conic_opacity[coll_id];
 			for (int i = 0; i < C; i++)
@@ -556,7 +704,6 @@ renderCUDA(
 			// gradients w.r.t. alpha (blending factor for a Gaussian/pixel
 			// pair).
 			float dL_dalpha = 0.0f;
-			const int global_id = collected_id[j];
 			for (int ch = 0; ch < C; ch++)
 			{
 				const float c = collected_colors[ch * BLOCK_SIZE + j];

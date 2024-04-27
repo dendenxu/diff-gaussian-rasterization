@@ -29,6 +29,27 @@ namespace CudaRasterizer
 			float* projmatrix,
 			bool* present);
 
+		static void computeCov4D(
+			int P,
+			const float* scaling_xyzt,
+			const float* rotation_l,
+			const float* rotation_r,
+			float* _cov,
+			float* _ms,
+			float* _cov_t);
+
+		static void computeCov4DBackward(
+			int P,
+			const float* scaling_xyzt,
+			const float* rotation_l,
+			const float* rotation_r,
+			const float* dL_dcov,
+			const float* dL_dms,
+			const float* dL_dcov_t,
+			float* dL_dscaling_xyzt,
+			float* dL_drotation_l,
+			float* dL_drotation_r);
+
 		static int forward(
 			std::function<char* (size_t)> geometryBuffer,
 			std::function<char* (size_t)> binningBuffer,

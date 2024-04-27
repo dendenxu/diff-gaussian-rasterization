@@ -27,9 +27,7 @@
 namespace cg = cooperative_groups;
 
 #include "auxiliary.h"
-// #include "auxiliary_half.h"
 #include "forward.h"
-// #include "forward_half.h"
 #include "backward.h"
 
 // Helper function to find the next-highest bit of the MSB
@@ -145,6 +143,49 @@ __global__ void identifyTileRanges(int L, uint64_t* point_list_keys, uint2* rang
 	}
 	if (idx == L - 1)
 		ranges[currtile].y = L;
+}
+
+
+void CudaRasterizer::Rasterizer::computeCov4D(int P,
+	const float* scaling_xyzt,
+	const float* rotation_l,
+	const float* rotation_r,
+	float* _cov,
+	float* _ms,
+	float* _cov_t)
+{
+	FORWARD::computeCov4D(
+		P,
+		(glm::vec4*)scaling_xyzt,
+		(glm::vec4*)rotation_l,
+		(glm::vec4*)rotation_r,
+		_cov,
+		(glm::vec3*)_ms,
+		_cov_t);
+}
+
+void CudaRasterizer::Rasterizer::computeCov4DBackward(int P,
+	const float* scaling_xyzt,
+	const float* rotation_l,
+	const float* rotation_r,
+	const float* dL_dcov,
+	const float* dL_dms,
+	const float* dL_dcov_t,
+	float* dL_dscaling_xyzt,
+	float* dL_drotation_l,
+	float* dL_drotation_r)
+{
+	BACKWARD::computeCov4DBackward(
+		P,
+		(glm::vec4*)scaling_xyzt,
+		(glm::vec4*)rotation_l,
+		(glm::vec4*)rotation_r,
+		dL_dcov,
+		(glm::vec3*)dL_dms,
+		dL_dcov_t,
+		(glm::vec4*)dL_dscaling_xyzt,
+		(glm::vec4*)dL_drotation_l,
+		(glm::vec4*)dL_drotation_r);
 }
 
 

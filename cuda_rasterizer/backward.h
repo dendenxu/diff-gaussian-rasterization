@@ -65,6 +65,18 @@ namespace BACKWARD
 		float* dL_dsh,
 		glm::vec3* dL_dscale,
 		glm::vec4* dL_drot);
+
+	void computeCov4DBackward(
+		int P,
+		const glm::vec4* scaling_xyzt,
+		const glm::vec4* rotation_l,
+		const glm::vec4* rotation_r,
+		const float* dL_dcov3Ds, 
+		const glm::vec3* dL_dmean_shifts, 
+		const float* dL_dcov_ts,
+		glm::vec4* dL_dscaling_xyzt,
+		glm::vec4* dL_drotation_l, 
+		glm::vec4* dL_drotation_r);
 }
 
 #endif
