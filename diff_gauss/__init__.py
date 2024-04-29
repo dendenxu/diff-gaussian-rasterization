@@ -297,7 +297,7 @@ class _ComputeCov4D(torch.autograd.Function):
         return grads
 
 
-def compute_sh_4d(deg: int, deg_t: int, sh: torch.Tensor, dirs: torch.Tensor, dirs_t: torch.Tensor, l: float):
+def compute_sh_4d(deg: int, deg_t: int, sh: torch.Tensor, dirs: torch.Tensor = None, dirs_t: torch.Tensor = None, l: float = None):
     # Mark visible points (based on frustum culling for camera) with a boolean
     return _ComputeSH4D.apply(
         deg,
