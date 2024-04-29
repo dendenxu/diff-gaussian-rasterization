@@ -83,3 +83,22 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4DBackward(
 		torch::Tensor& dL_dcov,
 		torch::Tensor& dL_dms,
 		torch::Tensor& dL_dcov_t);
+
+torch::Tensor computeSH4D(
+	const int deg,
+	const int deg_t,
+	torch::Tensor& sh,
+	torch::Tensor& dir,
+	torch::Tensor& dir_t,
+	const float duration
+);
+
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeSH4DBackward(
+	const int deg,
+	const int deg_t,
+	torch::Tensor& sh,
+	torch::Tensor& dir,
+	torch::Tensor& dir_t,
+	const float duration,
+	torch::Tensor& dL_drgb
+);

@@ -77,6 +77,19 @@ namespace BACKWARD
 		glm::vec4* dL_dscaling_xyzt,
 		glm::vec4* dL_drotation_l, 
 		glm::vec4* dL_drotation_r);
+
+	void computeSH4DBackward(
+		int P,
+		int deg, int deg_t, int max_coeffs, 
+		const float* sh, 
+		const glm::vec3* dir, 
+		const float* dir_t, 
+		const float time_duration,
+		const glm::vec3* dL_drgb,
+		float* dL_dsh,
+		glm::vec3* dL_ddir,
+		float* dL_ddir_t
+	);
 }
 
 #endif

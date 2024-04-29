@@ -72,6 +72,15 @@ namespace FORWARD
 		float* cov,
 		glm::vec3* ms,
 		float* cov_t);
+
+	void computeSH4D(
+		int P,
+		int deg, int deg_t, int max_coeffs, 
+		const float* sh, 
+		const glm::vec3* dir, 
+		const float* dir_t, 
+		const float time_duration,
+		glm::vec3* rgb);
 }
 
 

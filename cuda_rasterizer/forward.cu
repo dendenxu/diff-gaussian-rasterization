@@ -70,6 +70,165 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 	return glm::max(result, 0.0f);
 }
 
+
+__device__ glm::vec3 computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeffs, const float* shs, const glm::vec3* dirs, const float* dirs_t, const float time_duration)
+{
+	// The implementation is loosely based on code for
+	// "Differentiable Point-Based Radiance Fields for
+	// Efficient View Synthesis" by Zhang et al. (2022)
+	glm::vec3* sh = ((glm::vec3*)shs) + idx * max_coeffs;
+	glm::vec3 dir = dirs[idx];
+	const float dir_t = dirs_t[idx];
+
+	float l0m0 = SH_C0;
+	glm::vec3 result = l0m0 * sh[0];
+
+	if (deg > 0)
+		{
+		float x = dir.x;
+		float y = dir.y;
+		float z = dir.z;
+
+		float l1m1 = -1 * SH_C1 * y;
+		float l1m0 = SH_C1 * z;
+		float l1p1 = -1 * SH_C1 * x;
+
+		result += 
+			l1m1 * sh[1] +
+			l1m0 * sh[2] +
+			l1p1 * sh[3];
+
+		if (deg > 1)
+		{
+			float xx = x * x, yy = y * y, zz = z * z;
+			float xy = x * y, yz = y * z, xz = x * z;
+
+			float l2m2 = SH_C2[0] * xy;
+			float l2m1 = SH_C2[1] * yz;
+			float l2m0 = SH_C2[2] * (2.0 * zz - xx - yy);
+			float l2p1 = SH_C2[3] * xz;
+			float l2p2 = SH_C2[4] * (xx - yy);
+
+			result +=
+				l2m2 * sh[4] +
+				l2m1 * sh[5] +
+				l2m0 * sh[6] +
+				l2p1 * sh[7] +
+				l2p2 * sh[8];
+
+			if (deg > 2)
+			{
+				float l3m3 = SH_C3[0] * y * (3 * xx - yy);
+				float l3m2 = SH_C3[1] * xy * z;
+				float l3m1 = SH_C3[2] * y * (4 * zz - xx - yy);
+				float l3m0 = SH_C3[3] * z * (2 * zz - 3 * xx - 3 * yy);
+				float l3p1 = SH_C3[4] * x * (4 * zz - xx - yy);
+				float l3p2 = SH_C3[5] * z * (xx - yy);
+				float l3p3 = SH_C3[6] * x * (xx - 3 * yy);
+
+				result +=
+					l3m3 * sh[9] +
+					l3m2 * sh[10] +
+					l3m1 * sh[11] +
+					l3m0 * sh[12] +
+					l3p1 * sh[13] +
+					l3p2 * sh[14] +
+					l3p3 * sh[15];
+
+				if (deg_t > 0){
+					float t1 = cos(2 * MY_PI * dir_t / time_duration);
+
+					result += t1 * (l0m0 * sh[16] +
+						l1m1 * sh[17] +
+						l1m0 * sh[18] +
+						l1p1 * sh[19] + 
+						l2m2 * sh[20] +
+						l2m1 * sh[21] +
+						l2m0 * sh[22] +
+						l2p1 * sh[23] +
+						l2p2 * sh[24] + 
+						l3m3 * sh[25] +
+						l3m2 * sh[26] +
+						l3m1 * sh[27] +
+						l3m0 * sh[28] +
+						l3p1 * sh[29] +
+						l3p2 * sh[30] +
+						l3p3 * sh[31]);
+
+					if (deg_t > 1){
+						float t2 = cos(2 * MY_PI * dir_t * 2 / time_duration);
+
+						result += t2 * (l0m0 * sh[32] +
+							l1m1 * sh[33] +
+							l1m0 * sh[34] +
+							l1p1 * sh[35] + 
+							l2m2 * sh[36] +
+							l2m1 * sh[37] +
+							l2m0 * sh[38] +
+							l2p1 * sh[39] +
+							l2p2 * sh[40] + 
+							l3m3 * sh[41] +
+							l3m2 * sh[42] +
+							l3m1 * sh[43] +
+							l3m0 * sh[44] +
+							l3p1 * sh[45] +
+							l3p2 * sh[46] +
+							l3p3 * sh[47]);
+					}
+
+				}
+			}
+		}
+	}
+	result += 0.5f;
+
+	return result;
+}
+
+
+__global__ void computeSH4DCUDA(int P,
+								int deg, int deg_t, int max_coeffs, 
+								const float* sh, const glm::vec3* dir, const float* dir_t, const float time_duration, glm::vec3* rgb
+)
+{
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+	rgb[idx] =  computeColorFromSH_4D(
+		idx,
+		deg,
+		deg_t,
+		max_coeffs,
+		sh,
+		dir,
+		dir_t,
+		time_duration
+	);
+}
+
+
+void FORWARD::computeSH4D(
+	int P,
+	int deg, int deg_t, int max_coeffs, 
+	const float* sh, 
+	const glm::vec3* dir, 
+	const float* dir_t, 
+	const float time_duration,
+	glm::vec3* rgb) 
+{
+	computeSH4DCUDA << <(P + 255) / 256, 256 >> > (
+		P,
+		deg,
+		deg_t,
+		max_coeffs,
+		sh,
+		dir,
+		dir_t,
+		time_duration,
+		rgb
+	);
+}
+
 // Forward version of 2D covariance matrix computation
 __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix)
 {

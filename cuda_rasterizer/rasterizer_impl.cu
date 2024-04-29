@@ -189,6 +189,56 @@ void CudaRasterizer::Rasterizer::computeCov4DBackward(int P,
 }
 
 
+void CudaRasterizer::Rasterizer::computeSH4D(int P,
+	int deg, int deg_t, int max_coeffs, 
+	const float* shs, 
+	const float* dir, 
+	const float* dir_t, 
+	const float time_duration,
+	float* rgb)
+{
+	FORWARD::computeSH4D(
+		P,
+		deg,
+		deg_t,
+		max_coeffs,
+		shs,
+		(glm::vec3*)dir,
+		dir_t,
+		time_duration,
+		(glm::vec3*)rgb
+	);
+}
+
+void CudaRasterizer::Rasterizer::computeSH4DBackward(
+	int P,
+	int deg, int deg_t, int max_coeffs, 
+	const float* shs, 
+	const float* dir, 
+	const float* dir_t, 
+	const float time_duration,
+	const float* dL_drgb,
+	float* dL_dsh,
+	const float* dL_ddir,
+	float* dL_ddir_t
+)
+{
+	BACKWARD::computeSH4DBackward(
+		P,
+		deg,
+		deg_t,
+		max_coeffs,
+		shs,
+		(glm::vec3*)dir,
+		dir_t,
+		time_duration,
+		(glm::vec3*)dL_drgb,
+		dL_dsh,
+		(glm::vec3*)dL_ddir,
+		dL_ddir_t
+	);
+}
+
 // Mark Gaussians as visible/invisible, based on view frustum testing
 void CudaRasterizer::Rasterizer::markVisible(
 	int P,

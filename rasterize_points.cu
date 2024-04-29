@@ -217,7 +217,7 @@ torch::Tensor markVisible(
 { 
   const int P = means3D.size(0);
   
-  torch::Tensor present = torch::full({P}, false, means3D.options().dtype(at::kBool));
+  torch::Tensor present = torch::empty({P}, means3D.options().dtype(at::kBool));
  
   if(P != 0)
   {
@@ -238,9 +238,9 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4D(
 { 
   const int P = scaling_xyzt.size(0);
   
-  torch::Tensor cov = torch::full({P, 6}, false, scaling_xyzt.options());
-  torch::Tensor ms = torch::full({P, 3}, false, scaling_xyzt.options());
-  torch::Tensor cov_t = torch::full({P, 1}, false, scaling_xyzt.options());
+  torch::Tensor cov = torch::empty({P, 6}, scaling_xyzt.options());
+  torch::Tensor ms = torch::empty({P, 3}, scaling_xyzt.options());
+  torch::Tensor cov_t = torch::empty({P, 1}, scaling_xyzt.options());
  
   if(P != 0)
   {
@@ -266,9 +266,9 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4DBackward(
 { 
   const int P = scaling_xyzt.size(0);
   
-  torch::Tensor dL_dscaling_xyzt = torch::full({P, 4}, false, scaling_xyzt.options());
-  torch::Tensor dL_drotation_l = torch::full({P, 4}, false, scaling_xyzt.options());
-  torch::Tensor dL_drotation_r = torch::full({P, 4}, false, scaling_xyzt.options());
+  torch::Tensor dL_dscaling_xyzt = torch::zeros({P, 4}, scaling_xyzt.options());
+  torch::Tensor dL_drotation_l = torch::zeros({P, 4}, scaling_xyzt.options());
+  torch::Tensor dL_drotation_r = torch::zeros({P, 4}, scaling_xyzt.options());
  
   if(P != 0)
   {
@@ -285,4 +285,81 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4DBackward(
   }
   
   return std::make_tuple(dL_dscaling_xyzt, dL_drotation_l, dL_drotation_r);
+}
+
+
+torch::Tensor computeSH4D(
+	const int deg,
+	const int deg_t,
+	torch::Tensor& sh,
+	torch::Tensor& dir,
+	torch::Tensor& dir_t,
+	const float duration
+)
+{ 
+	const int P = sh.size(0);
+  
+	int M = 0;
+	if(sh.size(0) != 0)
+	{	
+		M = sh.size(1);
+	}
+
+	torch::Tensor rgb = torch::zeros({P, 3}, sh.options());
+
+	if(P != 0)
+	{
+		CudaRasterizer::Rasterizer::computeSH4D(P,
+			deg, deg_t, M,
+			sh.contiguous().data_ptr<float>(),
+			dir.contiguous().data_ptr<float>(),
+			dir_t.contiguous().data_ptr<float>(),
+			duration,
+			rgb.contiguous().data_ptr<float>()
+		);
+	}
+
+	return rgb;
+}
+
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeSH4DBackward(
+	const int deg,
+	const int deg_t,
+	torch::Tensor& sh,
+	torch::Tensor& dir,
+	torch::Tensor& dir_t,
+	const float duration,
+	torch::Tensor& dL_drgb
+)
+{ 
+	const int P = sh.size(0);
+
+  
+	int M = 0;
+	if(sh.size(0) != 0)
+	{	
+		M = sh.size(1);
+	}
+
+
+	torch::Tensor dL_dsh = torch::zeros({P, M, 3}, sh.options());
+	torch::Tensor dL_ddir = torch::zeros({P, 3}, sh.options());
+	torch::Tensor dL_ddir_t = torch::zeros({P, 1}, sh.options());
+
+	if(P != 0)
+	{
+		CudaRasterizer::Rasterizer::computeSH4DBackward(P,
+			deg, deg_t, M,
+			sh.contiguous().data_ptr<float>(),
+			dir.contiguous().data_ptr<float>(),
+			dir_t.contiguous().data_ptr<float>(),
+			duration,
+			dL_drgb.contiguous().data_ptr<float>(),
+			dL_dsh.contiguous().data_ptr<float>(),
+			dL_ddir.contiguous().data_ptr<float>(),
+			dL_ddir_t.contiguous().data_ptr<float>()
+		);
+	}
+
+	return std::make_tuple(dL_dsh, dL_ddir, dL_ddir_t);
 }

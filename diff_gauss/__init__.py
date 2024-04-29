@@ -252,7 +252,7 @@ def mark_visible(positions: torch.Tensor, viewmatrix: torch.Tensor, projmatrix: 
     return visible
 
 
-def compute_cov_4D(scaling_xyzt: torch.Tensor, rotation_l: torch.Tensor, rotation_r: torch.Tensor):
+def compute_cov_4d(scaling_xyzt: torch.Tensor, rotation_l: torch.Tensor, rotation_r: torch.Tensor):
     # Mark visible points (based on frustum culling for camera) with a boolean
     return _ComputeCov4D.apply(
         scaling_xyzt,
@@ -268,7 +268,7 @@ class _ComputeCov4D(torch.autograd.Function):
         rotation_l,
         rotation_r
     ):
-        cov, ms, cov_t = _C.compute_cov_4D(scaling_xyzt, rotation_l, rotation_r)
+        cov, ms, cov_t = _C.compute_cov_4d(scaling_xyzt, rotation_l, rotation_r)
         ctx.save_for_backward(scaling_xyzt, rotation_l, rotation_r)
         return cov, ms, cov_t
 
@@ -276,10 +276,10 @@ class _ComputeCov4D(torch.autograd.Function):
     def backward(ctx, grad_out_cov, grad_out_ms, grad_out_cov_t):
 
         # Restore necessary values from context
-        scaling_xyzt, rotation_l, rotation_r= ctx.saved_tensors
+        scaling_xyzt, rotation_l, rotation_r = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
-        grad_scaling_xyzt, grad_rotation_l, grad_rotation_r = _C.compute_cov_4D_backward(
+        grad_scaling_xyzt, grad_rotation_l, grad_rotation_r = _C.compute_cov_4d_backward(
             scaling_xyzt,
             rotation_l,
             rotation_r,
@@ -292,6 +292,68 @@ class _ComputeCov4D(torch.autograd.Function):
             grad_scaling_xyzt,
             grad_rotation_l,
             grad_rotation_r,
+        )
+
+        return grads
+
+
+def compute_sh_4d(deg: int, deg_t: int, sh: torch.Tensor, dirs: torch.Tensor, dirs_t: torch.Tensor, l: float):
+    # Mark visible points (based on frustum culling for camera) with a boolean
+    return _ComputeSH4D.apply(
+        deg,
+        deg_t,
+        sh,
+        dirs,
+        dirs_t,
+        l)
+
+
+class _ComputeSH4D(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        deg,
+        deg_t,
+        sh,
+        dirs,
+        dirs_t,
+        l
+    ):
+        if dirs is None:
+            dirs = torch.Tensor([])
+        if dirs_t is None:
+            dirs_t = torch.Tensor([])
+        if l is None:
+            l = 0.0
+        rgb = _C.compute_sh_4d(deg, deg_t, sh, dirs, dirs_t, l)
+        ctx.deg = deg
+        ctx.deg_t = deg_t
+        ctx.l = l
+        ctx.save_for_backward(sh, dirs, dirs_t)
+        return rgb
+
+    @staticmethod
+    def backward(ctx, grad_out_rgb):
+
+        # Restore necessary values from context
+        deg = ctx.deg
+        deg_t = ctx.deg_t
+        l = ctx.l
+        sh, dirs, dirs_t = ctx.saved_tensors
+
+        # Restructure args as C++ method expects them
+        grad_sh, grad_dirs, grad_dirs_t = _C.compute_sh_4d_backward(
+            deg, deg_t, sh, dirs, dirs_t, l,
+            grad_out_rgb,
+        )
+
+        grads = (
+            None,
+            None,
+            grad_sh,
+            grad_dirs,
+            grad_dirs_t,
+            None,
         )
 
         return grads

@@ -38,6 +38,27 @@ namespace CudaRasterizer
 			float* ms,
 			float* cov_t);
 
+		static void computeSH4D(
+			int P,
+			int deg, int deg_t, int max_coeffs, 
+			const float* shs, 
+			const float* dir, 
+			const float* dir_t, 
+			const float time_duration,
+			float* rgb);
+
+		static void computeSH4DBackward(
+			int P,
+			int deg, int deg_t, int max_coeffs, 
+			const float* shs, 
+			const float* dir, 
+			const float* dir_t, 
+			const float time_duration,
+			const float* dL_drgb,
+			float* dL_dsh,
+			const float* dL_ddir,
+			float* dL_ddir_t);
+
 		static void computeCov4DBackward(
 			int P,
 			const float* scaling_xyzt,
