@@ -453,8 +453,11 @@ __device__ void computeCov4DBackward(
 	const float l_l_sqr = l_l * l_l;
 	const float l_r_sqr = l_r * l_r;
 
-	const float dot_l = glm::dot(dL_drot_l, rotation_l);
-	const float dot_r = glm::dot(dL_drot_r, rotation_r);
+	const glm::vec4 rot_l(a, b, c, d);
+	const glm::vec4 rot_r(p, q, r, s);
+
+	const float dot_l = glm::dot(dL_drot_l, rot_l);
+	const float dot_r = glm::dot(dL_drot_r, rot_r);
 
 	// Update gradients for rotation_l
 	dL_drotation_l.x = (dL_drot_l.x * l_l - rotation_l.x * dot_l) / l_l_sqr;
