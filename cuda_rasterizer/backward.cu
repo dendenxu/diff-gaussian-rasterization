@@ -437,34 +437,36 @@ __device__ void computeCov4DBackward(
 	dL_dMt[3] *= scaling_xyzt.w;
 
 	glm::mat4 dL_dml_t = dL_dMt * M_r;
-	dL_drotation_l.x = dL_dml_t[0][0] + dL_dml_t[1][1] + dL_dml_t[2][2] + dL_dml_t[3][3];
-	dL_drotation_l.y = dL_dml_t[0][1] - dL_dml_t[1][0] + dL_dml_t[2][3] - dL_dml_t[3][2];
-	dL_drotation_l.z = dL_dml_t[0][2] - dL_dml_t[1][3] - dL_dml_t[2][0] + dL_dml_t[3][1];
-	dL_drotation_l.w = dL_dml_t[0][3] + dL_dml_t[1][2] - dL_dml_t[2][1] - dL_dml_t[3][0];
+	glm::vec4 dL_drot_l;
+	dL_drot_l.x = dL_dml_t[0][0] + dL_dml_t[1][1] + dL_dml_t[2][2] + dL_dml_t[3][3];
+	dL_drot_l.y = dL_dml_t[0][1] - dL_dml_t[1][0] + dL_dml_t[2][3] - dL_dml_t[3][2];
+	dL_drot_l.z = dL_dml_t[0][2] - dL_dml_t[1][3] - dL_dml_t[2][0] + dL_dml_t[3][1];
+	dL_drot_l.w = dL_dml_t[0][3] + dL_dml_t[1][2] - dL_dml_t[2][1] - dL_dml_t[3][0];
 
 	glm::mat4 dL_dmr_t = M_l * dL_dMt;
-	dL_drotation_r.x = dL_dmr_t[0][0] + dL_dmr_t[1][1] + dL_dmr_t[2][2] + dL_dmr_t[3][3];
-	dL_drotation_r.y = -dL_dmr_t[0][1] + dL_dmr_t[1][0] + dL_dmr_t[2][3] - dL_dmr_t[3][2];
-	dL_drotation_r.z = -dL_dmr_t[0][2] - dL_dmr_t[1][3] + dL_dmr_t[2][0] + dL_dmr_t[3][1];
-	dL_drotation_r.w = -dL_dmr_t[0][3] + dL_dmr_t[1][2] - dL_dmr_t[2][1] + dL_dmr_t[3][0];
+	glm::vec4 dL_drot_r;
+	dL_drot_r.x = dL_dmr_t[0][0] + dL_dmr_t[1][1] + dL_dmr_t[2][2] + dL_dmr_t[3][3];
+	dL_drot_r.y = -dL_dmr_t[0][1] + dL_dmr_t[1][0] + dL_dmr_t[2][3] - dL_dmr_t[3][2];
+	dL_drot_r.z = -dL_dmr_t[0][2] - dL_dmr_t[1][3] + dL_dmr_t[2][0] + dL_dmr_t[3][1];
+	dL_drot_r.w = -dL_dmr_t[0][3] + dL_dmr_t[1][2] - dL_dmr_t[2][1] + dL_dmr_t[3][0];
 
-	const float dldl_l = 1.0f / (l_l * l_l);
-	const float dldl_r = 1.0f / (l_r * l_r);
+	const float l_l_sqr = l_l * l_l;
+	const float l_r_sqr = l_r * l_r;
 
-	glm::vec4 grad_l = dL_drotation_l; // copy
-	glm::vec4 grad_r = dL_drotation_r; // copy
+	const float dot_l = glm::dot(dL_drot_l, rotation_l);
+	const float dot_r = glm::dot(dL_drot_r, rotation_r);
 
 	// Update gradients for rotation_l
-	dL_drotation_l.x = (grad_l.x * l_l - rotation_l.x * glm::dot(grad_l, rotation_l)) * dldl_l;
-	dL_drotation_l.y = (grad_l.y * l_l - rotation_l.y * glm::dot(grad_l, rotation_l)) * dldl_l;
-	dL_drotation_l.z = (grad_l.z * l_l - rotation_l.z * glm::dot(grad_l, rotation_l)) * dldl_l;
-	dL_drotation_l.w = (grad_l.w * l_l - rotation_l.w * glm::dot(grad_l, rotation_l)) * dldl_l;
+	dL_drotation_l.x = (dL_drot_l.x * l_l - rotation_l.x * dot_l) / l_l_sqr;
+	dL_drotation_l.y = (dL_drot_l.y * l_l - rotation_l.y * dot_l) / l_l_sqr;
+	dL_drotation_l.z = (dL_drot_l.z * l_l - rotation_l.z * dot_l) / l_l_sqr;
+	dL_drotation_l.w = (dL_drot_l.w * l_l - rotation_l.w * dot_l) / l_l_sqr;
 
 	// Update gradients for rotation_r
-	dL_drotation_r.x = (grad_r.x * l_r - rotation_r.x * glm::dot(grad_r, rotation_r)) * dldl_r;
-	dL_drotation_r.y = (grad_r.y * l_r - rotation_r.y * glm::dot(grad_r, rotation_r)) * dldl_r;
-	dL_drotation_r.z = (grad_r.z * l_r - rotation_r.z * glm::dot(grad_r, rotation_r)) * dldl_r;
-	dL_drotation_r.w = (grad_r.w * l_r - rotation_r.w * glm::dot(grad_r, rotation_r)) * dldl_r;
+	dL_drotation_r.x = (dL_drot_r.x * l_r - rotation_r.x * dot_r) / l_r_sqr;
+	dL_drotation_r.y = (dL_drot_r.y * l_r - rotation_r.y * dot_r) / l_r_sqr;
+	dL_drotation_r.z = (dL_drot_r.z * l_r - rotation_r.z * dot_r) / l_r_sqr;
+	dL_drotation_r.w = (dL_drot_r.w * l_r - rotation_r.w * dot_r) / l_r_sqr;
 }
 
 __global__ void computeCov4DBackwardCUDA(int P,
