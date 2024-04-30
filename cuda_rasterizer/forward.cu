@@ -322,13 +322,13 @@ __device__ void computeCov4D(const glm::vec4 scaling_xyzt, const glm::vec4 rotat
 	S[2][2] = scaling_xyzt.z;
 	S[3][3] = scaling_xyzt.w;
 
-	const float l_l = sqrt(glm::dot(rotation_l, rotation_l));
+	const float l_l = glm::length(rotation_l);
 	const float a = rotation_l.x / l_l;
 	const float b = rotation_l.y / l_l;
 	const float c = rotation_l.z / l_l;
 	const float d = rotation_l.w / l_l;
 
-	const float l_r = sqrt(glm::dot(rotation_r, rotation_r));
+	const float l_r = glm::length(rotation_l);
 	const float p = rotation_r.x / l_r;
 	const float q = rotation_r.y / l_r;
 	const float r = rotation_r.z / l_r;

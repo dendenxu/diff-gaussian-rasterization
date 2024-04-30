@@ -751,13 +751,13 @@ __device__ void computeCov4DBackward(
 	S[2][2] = scaling_xyzt.z;
 	S[3][3] = scaling_xyzt.w;
 
-	const float l_l = sqrt(glm::dot(rotation_l, rotation_l));
+	const float l_l = glm::length(rotation_l);
 	const float a = rotation_l.x / l_l;
 	const float b = rotation_l.y / l_l;
 	const float c = rotation_l.z / l_l;
 	const float d = rotation_l.w / l_l;
 
-	const float l_r = sqrt(glm::dot(rotation_r, rotation_r));
+	const float l_r = glm::length(rotation_l);
 	const float p = rotation_r.x / l_r;
 	const float q = rotation_r.y / l_r;
 	const float r = rotation_r.z / l_r;
@@ -840,26 +840,16 @@ __device__ void computeCov4DBackward(
 	dL_drot_r.z = -dL_dmr_t[0][2] - dL_dmr_t[1][3] + dL_dmr_t[2][0] + dL_dmr_t[3][1];
 	dL_drot_r.w = -dL_dmr_t[0][3] + dL_dmr_t[1][2] - dL_dmr_t[2][1] + dL_dmr_t[3][0];
 
-	const float l_l_sqr = l_l * l_l;
-	const float l_r_sqr = l_r * l_r;
-
-	const glm::vec4 rot_l(a, b, c, d);
-	const glm::vec4 rot_r(p, q, r, s);
-
-	const float dot_l = glm::dot(dL_drot_l, rot_l);
-	const float dot_r = glm::dot(dL_drot_r, rot_r);
-
-	// Update gradients for rotation_l
-	dL_drotation_l.x = (dL_drot_l.x * l_l - rotation_l.x * dot_l) / l_l_sqr;
-	dL_drotation_l.y = (dL_drot_l.y * l_l - rotation_l.y * dot_l) / l_l_sqr;
-	dL_drotation_l.z = (dL_drot_l.z * l_l - rotation_l.z * dot_l) / l_l_sqr;
-	dL_drotation_l.w = (dL_drot_l.w * l_l - rotation_l.w * dot_l) / l_l_sqr;
-
-	// Update gradients for rotation_r
-	dL_drotation_r.x = (dL_drot_r.x * l_r - rotation_r.x * dot_r) / l_r_sqr;
-	dL_drotation_r.y = (dL_drot_r.y * l_r - rotation_r.y * dot_r) / l_r_sqr;
-	dL_drotation_r.z = (dL_drot_r.z * l_r - rotation_r.z * dot_r) / l_r_sqr;
-	dL_drotation_r.w = (dL_drot_r.w * l_r - rotation_r.w * dot_r) / l_r_sqr;
+	float4 dL_drotation_l_f = dnormvdv(float4{rotation_l.x, rotation_l.y, rotation_l.z, rotation_l.w}, float4{dL_drot_l.x, dL_drot_l.y, dL_drot_l.z, dL_drot_l.w});
+	float4 dL_drotation_r_f = dnormvdv(float4{rotation_r.x, rotation_r.y, rotation_r.z, rotation_r.w}, float4{dL_drot_r.x, dL_drot_r.y, dL_drot_r.z, dL_drot_r.w});
+	dL_drotation_l.x = dL_drotation_l_f.x;
+	dL_drotation_l.y = dL_drotation_l_f.y;
+	dL_drotation_l.z = dL_drotation_l_f.z;
+	dL_drotation_l.w = dL_drotation_l_f.w;
+	dL_drotation_r.x = dL_drotation_r_f.x;
+	dL_drotation_r.y = dL_drotation_r_f.y;
+	dL_drotation_r.z = dL_drotation_r_f.z;
+	dL_drotation_r.w = dL_drotation_r_f.w;
 }
 
 __global__ void computeCov4DBackwardCUDA(int P,
