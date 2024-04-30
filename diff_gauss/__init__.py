@@ -253,7 +253,6 @@ def mark_visible(positions: torch.Tensor, viewmatrix: torch.Tensor, projmatrix: 
 
 
 def compute_cov_4d(scaling_xyzt: torch.Tensor, rotation_l: torch.Tensor, rotation_r: torch.Tensor):
-    # Mark visible points (based on frustum culling for camera) with a boolean
     return _ComputeCov4D.apply(
         scaling_xyzt,
         rotation_l,
@@ -298,7 +297,12 @@ class _ComputeCov4D(torch.autograd.Function):
 
 
 def compute_sh_4d(deg: int, deg_t: int, sh: torch.Tensor, dir: torch.Tensor = None, dir_t: torch.Tensor = None, l: float = None):
-    # Mark visible points (based on frustum culling for camera) with a boolean
+    if dir is None:
+        dir = torch.Tensor([])
+    if dir_t is None:
+        dir_t = torch.Tensor([])
+    if l is None:
+        l = 0.0
     return _ComputeSH4D.apply(
         deg,
         deg_t,
@@ -319,12 +323,6 @@ class _ComputeSH4D(torch.autograd.Function):
         dir_t,
         l
     ):
-        if dir is None:
-            dir = torch.Tensor([])
-        if dir_t is None:
-            dir_t = torch.Tensor([])
-        if l is None:
-            l = 0.0
         rgb = _C.compute_sh_4d(deg, deg_t, sh, dir, dir_t, l)
         ctx.deg = deg
         ctx.deg_t = deg_t
