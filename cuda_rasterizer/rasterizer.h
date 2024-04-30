@@ -56,7 +56,7 @@ namespace CudaRasterizer
 			const float time_duration,
 			const float* dL_drgb,
 			float* dL_dsh,
-			const float* dL_ddir,
+			float* dL_ddir,
 			float* dL_ddir_t);
 
 		static void computeCov4DBackward(

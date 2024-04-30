@@ -298,12 +298,8 @@ torch::Tensor computeSH4D(
 )
 { 
 	const int P = sh.size(0);
-  
 	int M = 0;
-	if(sh.size(0) != 0)
-	{	
-		M = sh.size(1);
-	}
+	if(sh.size(0) != 0) M = sh.size(1);
 
 	torch::Tensor rgb = torch::zeros({P, 3}, sh.options());
 
@@ -333,14 +329,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeSH4DBackward(
 )
 { 
 	const int P = sh.size(0);
-
-  
 	int M = 0;
-	if(sh.size(0) != 0)
-	{	
-		M = sh.size(1);
-	}
-
+	if(sh.size(0) != 0) M = sh.size(1);
 
 	torch::Tensor dL_dsh = torch::zeros({P, M, 3}, sh.options());
 	torch::Tensor dL_ddir = torch::zeros({P, 3}, sh.options());

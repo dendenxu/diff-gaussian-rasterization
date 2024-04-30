@@ -139,41 +139,41 @@ __device__ glm::vec3 computeColorFromSH_4D(int idx, int deg, int deg_t, int max_
 					float t1 = cos(2 * MY_PI * dir_t / time_duration);
 
 					result += t1 * (l0m0 * sh[16] +
-						l1m1 * sh[17] +
-						l1m0 * sh[18] +
-						l1p1 * sh[19] + 
-						l2m2 * sh[20] +
-						l2m1 * sh[21] +
-						l2m0 * sh[22] +
-						l2p1 * sh[23] +
-						l2p2 * sh[24] + 
-						l3m3 * sh[25] +
-						l3m2 * sh[26] +
-						l3m1 * sh[27] +
-						l3m0 * sh[28] +
-						l3p1 * sh[29] +
-						l3p2 * sh[30] +
-						l3p3 * sh[31]);
+									l1m1 * sh[17] +
+									l1m0 * sh[18] +
+									l1p1 * sh[19] + 
+									l2m2 * sh[20] +
+									l2m1 * sh[21] +
+									l2m0 * sh[22] +
+									l2p1 * sh[23] +
+									l2p2 * sh[24] + 
+									l3m3 * sh[25] +
+									l3m2 * sh[26] +
+									l3m1 * sh[27] +
+									l3m0 * sh[28] +
+									l3p1 * sh[29] +
+									l3p2 * sh[30] +
+									l3p3 * sh[31]);
 
 					if (deg_t > 1){
 						float t2 = cos(2 * MY_PI * dir_t * 2 / time_duration);
 
 						result += t2 * (l0m0 * sh[32] +
-							l1m1 * sh[33] +
-							l1m0 * sh[34] +
-							l1p1 * sh[35] + 
-							l2m2 * sh[36] +
-							l2m1 * sh[37] +
-							l2m0 * sh[38] +
-							l2p1 * sh[39] +
-							l2p2 * sh[40] + 
-							l3m3 * sh[41] +
-							l3m2 * sh[42] +
-							l3m1 * sh[43] +
-							l3m0 * sh[44] +
-							l3p1 * sh[45] +
-							l3p2 * sh[46] +
-							l3p3 * sh[47]);
+										l1m1 * sh[33] +
+										l1m0 * sh[34] +
+										l1p1 * sh[35] + 
+										l2m2 * sh[36] +
+										l2m1 * sh[37] +
+										l2m0 * sh[38] +
+										l2p1 * sh[39] +
+										l2p2 * sh[40] + 
+										l3m3 * sh[41] +
+										l3m2 * sh[42] +
+										l3m1 * sh[43] +
+										l3m0 * sh[44] +
+										l3p1 * sh[45] +
+										l3p2 * sh[46] +
+										l3p3 * sh[47]);
 					}
 
 				}

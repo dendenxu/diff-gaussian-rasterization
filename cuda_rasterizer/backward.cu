@@ -143,7 +143,7 @@ __device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::
 // each Gaussian.
 __device__ void computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeffs,
 	const float* shs, const glm::vec3* dirs, const float* dirs_t, const float time_duration,
-	const glm::vec3* dL_dcolor, float* dL_dshs, glm::vec3* dL_ddir, float* dL_ddir_t)
+	const glm::vec3* dL_drgb, float* dL_dshs, glm::vec3* dL_ddir, float* dL_ddir_t)
 {
 	// Compute intermediate values, as it is done during forward
 	glm::vec3* sh = ((glm::vec3*)shs) + idx * max_coeffs;
@@ -152,7 +152,7 @@ __device__ void computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeff
 
 	// Use PyTorch rule for clamping: if clamping was applied,
 	// gradient becomes 0.
-	glm::vec3 dL_dRGB = dL_dcolor[idx];
+	glm::vec3 dL_dRGB = dL_drgb[idx];
 
 	glm::vec3 dRGBdx(0, 0, 0);
 	glm::vec3 dRGBdy(0, 0, 0);
@@ -181,7 +181,7 @@ __device__ void computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeff
 		float dl1m0_dz = SH_C1;
 		float dl1p1_dx = -1 * SH_C1;
 
-		dL_dsh[1] = l0m0 * dL_dRGB;
+		dL_dsh[1] = l1m1 * dL_dRGB;
 		dL_dsh[2] = l1m0 * dL_dRGB;
 		dL_dsh[3] = l1p1 * dL_dRGB;
 
@@ -296,7 +296,25 @@ __device__ void computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeff
 					float t1 = cos(2 * MY_PI * dir_t / time_duration);
 					float dt1_dt = sin(2 * MY_PI * dir_t / time_duration) * 2 * MY_PI / time_duration;
 
-					dRGBdt = dt1_dt * (
+					dL_dsh[16] = t1 * l0m0 * dL_dRGB;
+					dL_dsh[17] = t1 * l1m1 * dL_dRGB;
+					dL_dsh[18] = t1 * l1m0 * dL_dRGB;
+					dL_dsh[19] = t1 * l1p1 * dL_dRGB;
+					dL_dsh[20] = t1 * l2m2 * dL_dRGB;
+					dL_dsh[21] = t1 * l2m1 * dL_dRGB;
+					dL_dsh[22] = t1 * l2m0 * dL_dRGB;
+					dL_dsh[23] = t1 * l2p1 * dL_dRGB;
+					dL_dsh[24] = t1 * l2p2 * dL_dRGB;
+					dL_dsh[25] = t1 * l3m3 * dL_dRGB;
+					dL_dsh[26] = t1 * l3m2 * dL_dRGB;
+					dL_dsh[27] = t1 * l3m1 * dL_dRGB;
+					dL_dsh[28] = t1 * l3m0 * dL_dRGB;
+					dL_dsh[29] = t1 * l3p1 * dL_dRGB;
+					dL_dsh[30] = t1 * l3p2 * dL_dRGB;
+					dL_dsh[31] = t1 * l3p3 * dL_dRGB;
+	
+
+					dRGBdt += dt1_dt * (
 						l0m0 * sh[16] +
 						l1m1 * sh[17] +
 						l1m0 * sh[18] +
@@ -360,7 +378,25 @@ __device__ void computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeff
 						float t2 = cos(2 * MY_PI * dir_t * 2 / time_duration);
 						float dt2_dt = sin(2 * MY_PI * dir_t * 2 / time_duration) * 2 * MY_PI * 2 / time_duration;
 
-						dRGBdt = dt2_dt * (
+
+						dL_dsh[32] = t2 * l0m0 * dL_dRGB;
+						dL_dsh[33] = t2 * l1m1 * dL_dRGB;
+						dL_dsh[34] = t2 * l1m0 * dL_dRGB;
+						dL_dsh[35] = t2 * l1p1 * dL_dRGB;
+						dL_dsh[36] = t2 * l2m2 * dL_dRGB;
+						dL_dsh[37] = t2 * l2m1 * dL_dRGB;
+						dL_dsh[38] = t2 * l2m0 * dL_dRGB;
+						dL_dsh[39] = t2 * l2p1 * dL_dRGB;
+						dL_dsh[40] = t2 * l2p2 * dL_dRGB;
+						dL_dsh[41] = t2 * l3m3 * dL_dRGB;
+						dL_dsh[42] = t2 * l3m2 * dL_dRGB;
+						dL_dsh[43] = t2 * l3m1 * dL_dRGB;
+						dL_dsh[44] = t2 * l3m0 * dL_dRGB;
+						dL_dsh[45] = t2 * l3p1 * dL_dRGB;
+						dL_dsh[46] = t2 * l3p2 * dL_dRGB;
+						dL_dsh[47] = t2 * l3p3 * dL_dRGB;
+
+						dRGBdt += dt2_dt * (
 							l0m0 * sh[32] +
 							l1m1 * sh[33] +
 							l1m0 * sh[34] +
@@ -435,7 +471,7 @@ __device__ void computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeff
 	// Gradients of loss w.r.t. Gaussian means, but only the portion
 	// that is caused because the mean affects the view-dependent color.
 	// Additional mean gradient is accumulated in below methods.
-	dL_ddir_t[idx] = glm::dot(dRGBdt, dL_dRGB);
+	dL_ddir_t[idx] = -glm::dot(dRGBdt, dL_dRGB);
 }
 
 __global__ void computeSH4DBackwardCUDA(int P,

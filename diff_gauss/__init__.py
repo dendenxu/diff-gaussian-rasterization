@@ -297,14 +297,14 @@ class _ComputeCov4D(torch.autograd.Function):
         return grads
 
 
-def compute_sh_4d(deg: int, deg_t: int, sh: torch.Tensor, dirs: torch.Tensor = None, dirs_t: torch.Tensor = None, l: float = None):
+def compute_sh_4d(deg: int, deg_t: int, sh: torch.Tensor, dir: torch.Tensor = None, dir_t: torch.Tensor = None, l: float = None):
     # Mark visible points (based on frustum culling for camera) with a boolean
     return _ComputeSH4D.apply(
         deg,
         deg_t,
         sh,
-        dirs,
-        dirs_t,
+        dir,
+        dir_t,
         l)
 
 
@@ -315,21 +315,21 @@ class _ComputeSH4D(torch.autograd.Function):
         deg,
         deg_t,
         sh,
-        dirs,
-        dirs_t,
+        dir,
+        dir_t,
         l
     ):
-        if dirs is None:
-            dirs = torch.Tensor([])
-        if dirs_t is None:
-            dirs_t = torch.Tensor([])
+        if dir is None:
+            dir = torch.Tensor([])
+        if dir_t is None:
+            dir_t = torch.Tensor([])
         if l is None:
             l = 0.0
-        rgb = _C.compute_sh_4d(deg, deg_t, sh, dirs, dirs_t, l)
+        rgb = _C.compute_sh_4d(deg, deg_t, sh, dir, dir_t, l)
         ctx.deg = deg
         ctx.deg_t = deg_t
         ctx.l = l
-        ctx.save_for_backward(sh, dirs, dirs_t)
+        ctx.save_for_backward(sh, dir, dir_t)
         return rgb
 
     @staticmethod
@@ -339,11 +339,11 @@ class _ComputeSH4D(torch.autograd.Function):
         deg = ctx.deg
         deg_t = ctx.deg_t
         l = ctx.l
-        sh, dirs, dirs_t = ctx.saved_tensors
+        sh, dir, dir_t = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
-        grad_sh, grad_dirs, grad_dirs_t = _C.compute_sh_4d_backward(
-            deg, deg_t, sh, dirs, dirs_t, l,
+        grad_sh, grad_dir, grad_dir_t = _C.compute_sh_4d_backward(
+            deg, deg_t, sh, dir, dir_t, l,
             grad_out_rgb,
         )
 
@@ -351,8 +351,8 @@ class _ComputeSH4D(torch.autograd.Function):
             None,
             None,
             grad_sh,
-            grad_dirs,
-            grad_dirs_t,
+            grad_dir,
+            grad_dir_t,
             None,
         )
 
