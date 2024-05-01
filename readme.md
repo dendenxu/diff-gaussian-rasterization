@@ -70,6 +70,24 @@ rendered_image, rendered_depth, rendered_alpha, radii = rasterizer(
 )
 ```
 
+## Fixed `ImageState` Buffer Size
+
+In the [original implementation](https://github.com/graphdeco-inria/diff-gaussian-rasterization), the size of the `ranges` member of the struct `ImageState` was too large (same as the number of pixels).
+
+In reality, only `number of tiles` of `ranges` are needed, as the `ranges` are used to store the start and end indices of the gaussian splats in the `GeometryState` buffer.
+
+We fix this by simply replacing the memory allocation of `ImageState` with:
+
+```c++
+CudaRasterizer::ImageState CudaRasterizer::ImageState::fromChunk(char*& chunk, size_t N, size_t M)
+{
+	ImageState img;
+	obtain(chunk, img.n_contrib, N, 128);
+	obtain(chunk, img.ranges, M, 128);
+	return img;
+}
+```
+
 ## Fixed Culling
 
 The [original repository](https://github.com/graphdeco-inria/diff-gaussian-rasterization)'s implementation for view-space culling wasn't effective (no points were culled).

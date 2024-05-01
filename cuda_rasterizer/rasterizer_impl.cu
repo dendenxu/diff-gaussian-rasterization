@@ -271,11 +271,11 @@ CudaRasterizer::GeometryState CudaRasterizer::GeometryState::fromChunk(char*& ch
 	return geom;
 }
 
-CudaRasterizer::ImageState CudaRasterizer::ImageState::fromChunk(char*& chunk, size_t N)
+CudaRasterizer::ImageState CudaRasterizer::ImageState::fromChunk(char*& chunk, size_t N, size_t M)
 {
 	ImageState img;
 	obtain(chunk, img.n_contrib, N, 128);
-	obtain(chunk, img.ranges, N, 128);
+	obtain(chunk, img.ranges, M, 128);
 	return img;
 }
 
@@ -339,9 +339,9 @@ int CudaRasterizer::Rasterizer::forward(
 	dim3 block(BLOCK_X, BLOCK_Y, 1);
 
 	// Dynamically resize image-based auxiliary buffers during training
-	size_t img_chunk_size = required<ImageState>(width * height);
+	size_t img_chunk_size = required<ImageState>(width * height, tile_grid.x * tile_grid.y);
 	char* img_chunkptr = imageBuffer(img_chunk_size); // memory allocation
-	ImageState imgState = ImageState::fromChunk(img_chunkptr, width * height);
+	ImageState imgState = ImageState::fromChunk(img_chunkptr, width * height, tile_grid.x * tile_grid.y);
 
 	if (NUM_CHANNELS != 3 && colors_precomp == nullptr)
 	{
@@ -482,20 +482,21 @@ void CudaRasterizer::Rasterizer::backward(
 	float* dL_drot,
 	bool debug)
 {
+
+	const float focal_y = height / (2.0f * tan_fovy);
+	const float focal_x = width / (2.0f * tan_fovx);
+	
+	const dim3 tile_grid((width + BLOCK_X - 1) / BLOCK_X, (height + BLOCK_Y - 1) / BLOCK_Y, 1);
+	const dim3 block(BLOCK_X, BLOCK_Y, 1);
+	
 	GeometryState geomState = GeometryState::fromChunk(geom_buffer, P);
 	BinningState binState = BinningState::fromChunk(binning_buffer, R);
-	ImageState imgState = ImageState::fromChunk(img_buffer, width * height);
+	ImageState imgState = ImageState::fromChunk(img_buffer, width * height, tile_grid.x * tile_grid.y);
 
 	if (radii == nullptr)
 	{
 		radii = geomState.internal_radii;
 	}
-
-	const float focal_y = height / (2.0f * tan_fovy);
-	const float focal_x = width / (2.0f * tan_fovx);
-
-	const dim3 tile_grid((width + BLOCK_X - 1) / BLOCK_X, (height + BLOCK_Y - 1) / BLOCK_Y, 1);
-	const dim3 block(BLOCK_X, BLOCK_Y, 1);
 
 	// Compute loss gradients w.r.t. 2D mean position, conic matrix,
 	// opacity and RGB of Gaussians from per-pixel loss gradients.

@@ -50,7 +50,7 @@ namespace CudaRasterizer
 		uint2* ranges;
 		uint32_t* n_contrib;
 
-		static ImageState fromChunk(char*& chunk, size_t N);
+		static ImageState fromChunk(char*& chunk, size_t N, size_t M);
 	};
 
 	struct BinningState
@@ -70,6 +70,14 @@ namespace CudaRasterizer
 	{
 		char* size = nullptr;
 		T::fromChunk(size, P);
+		return ((size_t)size) + 128;
+	}
+
+	template<typename T> 
+	size_t required(size_t P, size_t N)
+	{
+		char* size = nullptr;
+		T::fromChunk(size, P, N);
 		return ((size_t)size) + 128;
 	}
 };
