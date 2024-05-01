@@ -29,9 +29,9 @@ renderCUDA(...) {
     atomicAdd(&dL_dmean2D[global_id].x, s_dL_dmean2D[block.thread_rank()].x);
     atomicAdd(&dL_dmean2D[global_id].y, s_dL_dmean2D[block.thread_rank()].y);
 }
-
-
 ```
+
+We've also implemented a warp-reduction based version of the backward pass, but curiously it's slower than just doing `atomicAdd`s on the `__shared__` memory.
 
 ## Tile-Mask Rendering
 

@@ -479,7 +479,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float det = (cov.x * cov.z - cov.y * cov.y);
 	if (det == 0.0f || cov.x < 0.0f || cov.z < 0.0f) {
 		// Illegal cov matrix, this point should be pruned with zero gradients
-		radii[idx] = -1.0;
 		return;
 	}
 	float det_inv = 1.f / det;
@@ -494,7 +493,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
 	if (lambda1 < 0 || lambda2 < 0) {
 		// Illegal cov matrix, this point should be pruned with zero gradients
-		radii[idx] = -1.0;
 		return;
 	}
 	float my_radius = ceil(3.f * sqrt(max(lambda1, lambda2)));
@@ -520,7 +518,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 		}
 		if (!touched) {
 			// Not rendered since outside of tile mask
-			radii[idx] = -2.0;
+			radii[idx] = -1.0;
 			return;
 		}
 		else {
@@ -531,8 +529,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	}
 
 	if (tiles_touched[idx] == 0) {
-		// Not rendered since outside of tile mask
-		radii[idx] = -2.0;
+		// Not rendered since outside of all visible tiles
 		return;
 	}
 
