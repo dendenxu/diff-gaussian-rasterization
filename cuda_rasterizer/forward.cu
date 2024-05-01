@@ -500,7 +500,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// float my_radius = max(0.0f, ceil(3.f * sqrt(max(lambda1, lambda2))));
 	float2 point_image = { ndc2Pix(p_proj.x, W), ndc2Pix(p_proj.y, H) };
 	uint2 rect_min, rect_max;
-	getRect(point_image, my_radius, rect_min, rect_max, grid);
+	getRect(point_image, (int)my_radius, rect_min, rect_max, grid);
 
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
 	if (tiles_touched[idx] == 0) {
