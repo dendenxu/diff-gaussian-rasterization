@@ -502,6 +502,12 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	uint2 rect_min, rect_max;
 	getRect(point_image, my_radius, rect_min, rect_max, grid);
 
+	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
+	if (tiles_touched[idx] == 0) {
+		// Not rendered since outside of all visible tiles
+		return;
+	}
+
 	// perform tile mask check
 	if (tile_mask != nullptr){
 		int touched = 0;
@@ -516,7 +522,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 				}
 			}
 		}
-		if (!touched) {
+		if (touched == 0) {
 			// Not rendered since outside of tile mask
 			radii[idx] = -1.0;
 			return;
@@ -524,13 +530,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
 		else {
 			tiles_touched[idx] = touched;
 		}
-	} else {
-		tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
-	}
-
-	if (tiles_touched[idx] == 0) {
-		// Not rendered since outside of all visible tiles
-		return;
 	}
 
 	// If colors have been precomputed, use them, otherwise convert
