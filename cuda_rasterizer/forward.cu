@@ -518,7 +518,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
 				if (tile_mask[y * grid.x + x])
 				{
 					touched += 1;
-					break;
 				}
 			}
 		}
