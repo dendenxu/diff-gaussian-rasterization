@@ -522,13 +522,11 @@ __global__ void preprocessCUDA(int P, int D, int M,
 				}
 			}
 		}
+		tiles_touched[idx] = touched;
 		if (touched == 0) {
 			// Not rendered since outside of tile mask
 			radii[idx] = -1.0;
 			return;
-		}
-		else {
-			tiles_touched[idx] = touched;
 		}
 	}
 
