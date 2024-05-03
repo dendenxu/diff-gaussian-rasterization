@@ -31,9 +31,7 @@ renderCUDA(...) {
 }
 ```
 
-<!-- We've also implemented a warp-reduction based version of the backward pass, but curiously it's slower than just doing `atomicAdd`s on the `__shared__` memory. -->
-
-To make this process even faster, we've also implemented a warp-reduction based version of the backward pass on top of the `__shared__` memory optimization.
+In an effort to make this process even faster, we've also implemented a warp-reduction based version of the backward pass on top of the `__shared__` memory optimization.
 
 By directly communicating the gradient accumulation in a 32-thread warp using:
 
@@ -67,7 +65,9 @@ And later aggregate the warp sum into `__shared__` memory:
 ...
 ```
 
-We can shave off another 2-3ms for the backward pass.
+We can shave off another 2-3ms for the backward pass at the start of the training, but curiously it couldn't persist during the whole training process.
+
+Thus by default only the `__shared__` memory optimization is enabled and in use.
 
 ## Tile-Mask Rendering
 
