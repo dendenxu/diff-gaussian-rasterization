@@ -31,7 +31,43 @@ renderCUDA(...) {
 }
 ```
 
-We've also implemented a warp-reduction based version of the backward pass, but curiously it's slower than just doing `atomicAdd`s on the `__shared__` memory.
+<!-- We've also implemented a warp-reduction based version of the backward pass, but curiously it's slower than just doing `atomicAdd`s on the `__shared__` memory. -->
+
+To make this process even faster, we've also implemented a warp-reduction based version of the backward pass on top of the `__shared__` memory optimization.
+
+By directly communicating the gradient accumulation in a 32-thread warp using:
+
+```c++
+__device__ float warpReduceSum(float value) {
+    auto warp = cg::coalesced_threads();
+    for (int offset = warp.size() / 2; offset > 0; offset /= 2) {
+        value += warp.shfl_down(value, offset);
+    }
+    return value;
+}
+```
+
+And later aggregate the warp sum into `__shared__` memory:
+
+```c++
+...
+			// Use a single thread from each warp to perform block level reduction
+			if (block.thread_rank() % warp.size() == 0) {
+				for (int ch = 0; ch < C; ch++) {
+					atomicAdd(&(s_dL_dcolors[ch * BLOCK_SIZE + j]), w_dL_dcolors[ch]);
+				}
+				atomicAdd(&(s_dL_ddepths[j]), w_dL_ddepths);
+				atomicAdd(&s_dL_dmean2D[j].x, w_dL_dmean2D.x);
+				atomicAdd(&s_dL_dmean2D[j].y, w_dL_dmean2D.y);
+				atomicAdd(&s_dL_dconic2D[j].x, w_dL_dconic2D.x);
+				atomicAdd(&s_dL_dconic2D[j].y, w_dL_dconic2D.y);
+				atomicAdd(&s_dL_dconic2D[j].w, w_dL_dconic2D.w);
+				atomicAdd(&(s_dL_dopacity[j]), w_dL_dopacity);
+			}
+...
+```
+
+We can shave off another 2-3ms for the backward pass.
 
 ## Tile-Mask Rendering
 

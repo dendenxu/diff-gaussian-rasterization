@@ -355,3 +355,114 @@ class _ComputeSH4D(torch.autograd.Function):
         )
 
         return grads
+
+
+def align_with(p: int, a: int = 128):
+    p = (p + a - 1) // a * a
+    return p
+
+
+def interpret_geomBuffer(geomBuffer: torch.Tensor, N: int):
+    # N: Number of points rendered
+    ptr = geomBuffer.data_ptr()
+    p = align_with(ptr, 128) - ptr
+
+    off = 4 * N
+    depths = geomBuffer[p:p + off].view(torch.float)
+    p = align_with(p + off, 128)
+
+    off = 3 * N
+    clamped = geomBuffer[p:p + off].view(torch.bool).view(N, 3)
+    p = align_with(p + off, 128)
+
+    off = 4 * N
+    internal_radii = geomBuffer[p:p + off].view(torch.int)
+    p = align_with(p + off, 128)
+
+    off = 2 * 4 * N
+    means2D = geomBuffer[p:p + off].view(torch.float).view(N, 2)
+    p = align_with(p + off, 128)
+
+    off = 6 * 4 * N
+    cov3D = geomBuffer[p:p + off].view(torch.float).view(N, 6)
+    p = align_with(p + off, 128)
+
+    off = 4 * 4 * N
+    conic_opacity = geomBuffer[p:p + off].view(torch.float).view(N, 4)
+    p = align_with(p + off, 128)
+
+    off = 3 * 4 * N
+    rgb = geomBuffer[p:p + off].view(torch.float).view(N, 3)
+    p = align_with(p + off, 128)
+
+    off = 4 * N
+    tiles_touched = geomBuffer[p:p + off].view(torch.int)
+    p = align_with(p + off, 128)
+
+    off = 4 * N
+    point_offsets = geomBuffer[p:p + off].view(torch.int)
+
+    return dict(
+        depths=depths,
+        clamped=clamped,
+        internal_radii=internal_radii,
+        means2D=means2D,
+        cov3D=cov3D,
+        conic_opacity=conic_opacity,
+        rgb=rgb,
+        tiles_touched=tiles_touched,
+        point_offsets=point_offsets
+    )
+
+
+def interpret_binningBuffer(binningBuffer: torch.Tensor, N: int):
+    # N: Number of tile-gaussian pairs
+    ptr = binningBuffer.data_ptr()
+    p = align_with(ptr, 128) - ptr
+
+    off = 4 * N
+    point_list = binningBuffer[p:p + off].view(torch.int)
+    p = align_with(p + off, 128)
+
+    off = 4 * N
+    point_list_unsorted = binningBuffer[p:p + off].view(torch.int)
+    p = align_with(p + off, 128)
+
+    off = 8 * N
+    point_list_keys = binningBuffer[p:p + off].view(torch.long)
+    p = align_with(p + off, 128)
+
+    off = 8 * N
+    point_list_keys_unsorted = binningBuffer[p:p + off].view(torch.long)
+    p = align_with(p + off, 128)
+
+    return dict(
+        point_list=point_list,
+        point_list_unsorted=point_list_unsorted,
+        point_list_keys=point_list_keys,
+        point_list_keys_unsorted=point_list_keys_unsorted,
+
+        # Little Endian
+        depths=point_list_keys.view(torch.float).view(N, 2)[:, 0],
+        tile_ids=point_list_keys.view(torch.int).view(N, 2)[:, 1],
+    )
+
+
+def interpret_imgBuffer(imgBuffer: torch.Tensor, N: int, M: int):
+    # N: Number of pixels
+    # M: Number of tiles
+    ptr = imgBuffer.data_ptr()
+    p = align_with(ptr, 128) - ptr
+
+    off = 4 * N
+    n_contrib = imgBuffer[p:p + off].view(torch.int)
+    p = align_with(p + off, 128)
+
+    off = 2 * 4 * M
+    ranges = imgBuffer[p:p + off].view(torch.int).view(M, 2)
+    p = align_with(p + off, 128)
+
+    return dict(
+        n_contrib=n_contrib,
+        ranges=ranges
+    )
