@@ -757,7 +757,7 @@ __device__ void computeCov4DBackward(
 	const float c = rotation_l.z / l_l;
 	const float d = rotation_l.w / l_l;
 
-	const float l_r = glm::length(rotation_l);
+	const float l_r = glm::length(rotation_r);
 	const float p = rotation_r.x / l_r;
 	const float q = rotation_r.y / l_r;
 	const float r = rotation_r.z / l_r;
