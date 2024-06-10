@@ -477,7 +477,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 
 	// Invert covariance (EWA algorithm)
 	float det = (cov.x * cov.z - cov.y * cov.y);
-	if (det == 0.0f || cov.x < 0.0f || cov.z < 0.0f) {
+	if (det <= 0.0f || cov.x <= 0.0f || cov.z <= 0.0f) {
 		// Illegal cov matrix, this point should be pruned with zero gradients
 		return;
 	}
@@ -491,7 +491,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float mid = 0.5f * (cov.x + cov.z);
 	float lambda1 = mid + sqrt(max(0.1f, mid * mid - det));
 	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
-	if (lambda1 < 0 || lambda2 < 0) {
+	if (lambda1 <= 0.5 || lambda2 <= 0.5 || lambda1 < lambda2) {
 		// Illegal cov matrix, this point should be pruned with zero gradients
 		return;
 	}
