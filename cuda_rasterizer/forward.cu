@@ -491,7 +491,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float mid = 0.5f * (cov.x + cov.z);
 	float lambda1 = mid + sqrt(max(0.1f, mid * mid - det));
 	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
-	if (lambda1 <= 0.01 || lambda2 <= 0.01 || lambda1 < lambda2 || (lambda1 / lambda2) > 10000.0) {
+	if (lambda1 <= 0.01 || lambda2 <= 0.01 || lambda1 < lambda2 || (lambda1 / lambda2) > 100.0) {
 		// Illegal cov matrix, this point should be pruned with zero gradients
 		return;
 	}
