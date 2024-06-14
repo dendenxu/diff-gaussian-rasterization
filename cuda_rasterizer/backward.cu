@@ -1360,12 +1360,14 @@ renderCUDA(
 // 			const float gdy = G * d.y;
 // 			const float dG_ddelx = -gdx * con_o.x - gdy * con_o.y;
 // 			const float dG_ddely = -gdy * con_o.z - gdx * con_o.y;
+// 			const float dL_dmean2D_x = dL_dG * dG_ddelx * ddelx_dx;
+// 			const float dL_dmean2D_y = dL_dG * dG_ddely * ddely_dy;
 
 // 			// Update gradients w.r.t. 2D mean position of the Gaussian
-// 			atomicAdd(&s_dL_dmean2D[j].x, dL_dG * dG_ddelx * ddelx_dx);
-// 			atomicAdd(&s_dL_dmean2D[j].y, dL_dG * dG_ddely * ddely_dy);
-// 			atomicAdd(&s_dL_dabsmean2D[j].x, abs(s_dL_dmean2D[j].x));
-// 			atomicAdd(&s_dL_dabsmean2D[j].y, abs(s_dL_dmean2D[j].y));
+// 			atomicAdd(&s_dL_dmean2D[j].x, dL_dmean2D_x);
+// 			atomicAdd(&s_dL_dmean2D[j].y, dL_dmean2D_y);
+// 			atomicAdd(&s_dL_dabsmean2D[j].x, abs(dL_dmean2D_x));
+// 			atomicAdd(&s_dL_dabsmean2D[j].y, abs(dL_dmean2D_y));
 
 // 			// Update gradients w.r.t. 2D covariance (2x2 matrix, symmetric)
 // 			atomicAdd(&s_dL_dconic2D[j].x, -0.5f * gdx * d.x * dL_dG);
