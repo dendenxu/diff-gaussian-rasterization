@@ -1181,7 +1181,6 @@ renderCUDA(
 	const float* __restrict__ dL_dpixel_depths,
 	const float* __restrict__ dL_dpixel_alphas,
 	float3* __restrict__ dL_dmean2D,
-	float3* __restrict__ dL_dabsmean2D,
 	float4* __restrict__ dL_dconic2D,
 	float* __restrict__ dL_dopacity,
 	float* __restrict__ dL_dcolors,
@@ -1212,7 +1211,6 @@ renderCUDA(
 	// Heuristic, gaussians are likely to be updated by the same block (same tile)
 	// Thus it should be faster to first aggregate the gradients inside this block and update them to the global memory in just one go
 	__shared__ float3 s_dL_dmean2D[BLOCK_SIZE];
-	__shared__ float3 s_dL_dabsmean2D[BLOCK_SIZE];
 	__shared__ float4 s_dL_dconic2D[BLOCK_SIZE];
 	__shared__ float s_dL_dopacity[BLOCK_SIZE];
 	__shared__ float s_dL_dcolors[C * BLOCK_SIZE];
@@ -1268,8 +1266,6 @@ renderCUDA(
 			// Shared gradient accumulation in this block
 			s_dL_dmean2D[block.thread_rank()].x = 0.0f;
 			s_dL_dmean2D[block.thread_rank()].y = 0.0f;
-			s_dL_dabsmean2D[block.thread_rank()].x = 0.0f;
-			s_dL_dabsmean2D[block.thread_rank()].y = 0.0f;
 			s_dL_dconic2D[block.thread_rank()].x = 0.0f;
 			s_dL_dconic2D[block.thread_rank()].y = 0.0f;
 			s_dL_dconic2D[block.thread_rank()].w = 0.0f;
@@ -1358,8 +1354,6 @@ renderCUDA(
 			// Update gradients w.r.t. 2D mean position of the Gaussian
 			atomicAdd(&s_dL_dmean2D[j].x, dL_dG * dG_ddelx * ddelx_dx);
 			atomicAdd(&s_dL_dmean2D[j].y, dL_dG * dG_ddely * ddely_dy);
-			atomicAdd(&s_dL_dabsmean2D[j].x, abs(dL_dG * dG_ddelx * ddelx_dx));
-			atomicAdd(&s_dL_dabsmean2D[j].y, abs(dL_dG * dG_ddely * ddely_dy));
 
 			// Update gradients w.r.t. 2D covariance (2x2 matrix, symmetric)
 			atomicAdd(&s_dL_dconic2D[j].x, -0.5f * gdx * d.x * dL_dG);
@@ -1378,8 +1372,6 @@ renderCUDA(
 			// Shared gradient accumulation in this block
 			atomicAdd(&dL_dmean2D[global_id].x, s_dL_dmean2D[block.thread_rank()].x);
 			atomicAdd(&dL_dmean2D[global_id].y, s_dL_dmean2D[block.thread_rank()].y);
-			atomicAdd(&dL_dabsmean2D[global_id].x, s_dL_dabsmean2D[block.thread_rank()].x);
-			atomicAdd(&dL_dabsmean2D[global_id].y, s_dL_dabsmean2D[block.thread_rank()].y);
 			atomicAdd(&dL_dconic2D[global_id].x, s_dL_dconic2D[block.thread_rank()].x);
 			atomicAdd(&dL_dconic2D[global_id].y, s_dL_dconic2D[block.thread_rank()].y);
 			atomicAdd(&dL_dconic2D[global_id].w, s_dL_dconic2D[block.thread_rank()].w);
@@ -1796,7 +1788,6 @@ void BACKWARD::render(
 	const float* dL_dpixel_depths,
 	const float* dL_dpixel_alphas,
 	float3* dL_dmean2D,
-	float3* dL_dabsmean2D,
 	float4* dL_dconic2D,
 	float* dL_dopacity,
 	float* dL_dcolors,
@@ -1817,7 +1808,6 @@ void BACKWARD::render(
 		dL_dpixel_depths,
 		dL_dpixel_alphas,
 		dL_dmean2D,
-		dL_dabsmean2D,
 		dL_dconic2D,
 		dL_dopacity,
 		dL_dcolors,
