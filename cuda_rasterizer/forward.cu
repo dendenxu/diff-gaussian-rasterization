@@ -534,12 +534,12 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 
-	// Perform accurate per-tile culling test
-	// As mentioned in: StopThePop: Sorted Gaussian Splatting for View-Consistent Real-time Rendering
-	// Slightly higher threshold for tile-based culling; Otherwise, imprecisions could lead to more tiles in preprocess than in duplicate
-	constexpr float alpha_threshold = 1.0f / 255.0f;
-	const float opacity_power_threshold = log(conic_opacity[idx].w / alpha_threshold);
-	tiles_touched[idx] = computeTilebasedCullingTileCount(conic_opacity[idx], point_image, opacity_power_threshold, rect_min, rect_max);
+	// // Perform accurate per-tile culling test
+	// // As mentioned in: StopThePop: Sorted Gaussian Splatting for View-Consistent Real-time Rendering
+	// // Slightly higher threshold for tile-based culling; Otherwise, imprecisions could lead to more tiles in preprocess than in duplicate
+	// constexpr float alpha_threshold = 1.0f / 255.0f;
+	// const float opacity_power_threshold = log(conic_opacity[idx].w / alpha_threshold);
+	// tiles_touched[idx] = computeTilebasedCullingTileCount(conic_opacity[idx], point_image, opacity_power_threshold, rect_min, rect_max);
 
 	// If colors have been precomputed, use them, otherwise convert
 	// spherical harmonics coefficients to RGB color.

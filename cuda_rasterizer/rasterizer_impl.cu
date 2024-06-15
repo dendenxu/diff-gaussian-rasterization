@@ -109,16 +109,16 @@ __global__ void duplicateWithKeys(
 				else 
 				{
 
-					constexpr float alpha_threshold = 1.0f / 255.0f;
-					const float opacity_power_threshold = log(conic_opacity[idx].w / alpha_threshold);
-					glm::vec2 max_pos;
-					const glm::vec2 tile_min = {x * BLOCK_X, y * BLOCK_Y};
-					const glm::vec2 tile_max = {(x + 1) * BLOCK_X - 1, (y + 1) * BLOCK_Y - 1};
-					float max_opac_factor = max_contrib_power_rect_gaussian_float<BLOCK_X-1, BLOCK_Y-1>(conic_opacity[idx], points_xy[idx], tile_min, tile_max, max_pos);
+					// constexpr float alpha_threshold = 1.0f / 255.0f;
+					// const float opacity_power_threshold = log(conic_opacity[idx].w / alpha_threshold);
+					// glm::vec2 max_pos;
+					// const glm::vec2 tile_min = {x * BLOCK_X, y * BLOCK_Y};
+					// const glm::vec2 tile_max = {(x + 1) * BLOCK_X - 1, (y + 1) * BLOCK_Y - 1};
+					// float max_opac_factor = max_contrib_power_rect_gaussian_float<BLOCK_X-1, BLOCK_Y-1>(conic_opacity[idx], points_xy[idx], tile_min, tile_max, max_pos);
 
-					if (max_opac_factor > opacity_power_threshold) {
-						continue;
-					}
+					// if (max_opac_factor > opacity_power_threshold) {
+					// 	continue;
+					// }
 
 					key <<= 32;
 					key |= *((uint32_t*)&depths[idx]);

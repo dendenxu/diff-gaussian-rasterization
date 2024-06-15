@@ -69,6 +69,8 @@ We can shave off another 2-3ms for the backward pass at the start of the trainin
 
 Thus by default only the `__shared__` memory optimization is enabled and in use.
 
+Note: this seems slower...
+
 ## Tile-Based Culling
 
 Using the method mentioned: [StopThePop: Sorted Gaussian Splatting for View-Consistent Real-time Rendering](https://github.com/r4dl/StopThePop-Rasterization), we borrow the tile-based culling scheme here to reduce the computational cost during training and rendering.
@@ -89,6 +91,8 @@ This section of code is directly adapted from their repository.
     }
 ...
 ```
+
+Note: this seems slower...
 
 ## Tile-Mask Rendering
 
