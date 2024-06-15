@@ -510,7 +510,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 		return;
 	}
 
-	// perform tile mask check
+	// Perform tile mask check
 	if (tile_mask != nullptr){
 		int touched = 0;
 		for (int y = rect_min.y; y < rect_max.y; y++)
@@ -531,6 +531,16 @@ __global__ void preprocessCUDA(int P, int D, int M,
 		}
 	}
 
+	// Inverse 2D covariance and opacity neatly pack into one float4
+	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
+
+	// Perform accurate per-tile culling test
+	// As mentioned in: StopThePop: Sorted Gaussian Splatting for View-Consistent Real-time Rendering
+	// Slightly higher threshold for tile-based culling; Otherwise, imprecisions could lead to more tiles in preprocess than in duplicate
+	constexpr float alpha_threshold = 1.0f / 255.0f;
+	const float opacity_power_threshold = log(conic_opacity[idx].w / alpha_threshold);
+	tiles_touched[idx] = computeTilebasedCullingTileCount(conic_opacity[idx], point_image, opacity_power_threshold, rect_min, rect_max);
+
 	// If colors have been precomputed, use them, otherwise convert
 	// spherical harmonics coefficients to RGB color.
 	if (colors_precomp == nullptr)
@@ -545,9 +555,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	depths[idx] = p_view.z;
 	radii[idx] = my_radius;
 	points_xy_image[idx] = point_image;
-
-	// Inverse 2D covariance and opacity neatly pack into one float4
-	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 }
 
 // Main rasterization method. Collaboratively works on one tile per

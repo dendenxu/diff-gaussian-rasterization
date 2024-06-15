@@ -167,6 +167,92 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	return (p_proj.z > -1 - padding) && (p_proj.z < 1 + padding) && (p_proj.x > -1 - xy_padding) && (p_proj.x < 1. + xy_padding) && (p_proj.y > -1 - xy_padding) && (p_proj.y < 1. + xy_padding);
 }
 
+
+// As mentioned in: StopThePop: Sorted Gaussian Splatting for View-Consistent Real-time Rendering
+__device__ inline float evaluate_opacity_factor(const float dx, const float dy, const float4 co) 
+{
+	return 0.5f * (co.x * dx * dx + co.z * dy * dy) + co.y * dx * dy;
+}
+
+__device__ inline float evaluate_opacity(const float dx, const float dy, const float4 co) 
+{
+	return co.w * expf(-evaluate_opacity_factor(dx, dy, co));
+}
+
+template<uint32_t PATCH_WIDTH, uint32_t PATCH_HEIGHT>
+__device__ inline float max_contrib_power_rect_gaussian_float(
+	const float4 co, 
+	const float2 mean, 
+	const glm::vec2 rect_min,
+	const glm::vec2 rect_max,
+	glm::vec2& max_pos)
+{
+	const float x_min_diff = rect_min.x - mean.x;
+	const float x_left = x_min_diff > 0.0f;
+	// const float x_left = mean.x < rect_min.x;
+	const float not_in_x_range = x_left + (mean.x > rect_max.x);
+
+	const float y_min_diff = rect_min.y - mean.y;
+	const float y_above =  y_min_diff > 0.0f;
+	// const float y_above = mean.y < rect_min.y;
+	const float not_in_y_range = y_above + (mean.y > rect_max.y);
+
+	max_pos = {mean.x, mean.y};
+	float max_contrib_power = 0.0f;
+
+	if ((not_in_y_range + not_in_x_range) > 0.0f)
+	{
+		const float px = x_left * rect_min.x + (1.0f - x_left) * rect_max.x;
+		const float py = y_above * rect_min.y + (1.0f - y_above) * rect_max.y;
+
+		const float dx = copysign(float(PATCH_WIDTH), x_min_diff);
+		const float dy = copysign(float(PATCH_HEIGHT), y_min_diff);
+
+		const float diffx = mean.x - px;
+		const float diffy = mean.y - py;
+
+		const float rcp_dxdxcox = __frcp_rn(PATCH_WIDTH * PATCH_WIDTH * co.x); // = 1.0 / (dx*dx*co.x)
+		const float rcp_dydycoz = __frcp_rn(PATCH_HEIGHT * PATCH_HEIGHT * co.z); // = 1.0 / (dy*dy*co.z)
+
+		const float tx = not_in_y_range * __saturatef((dx * co.x * diffx + dx * co.y * diffy) * rcp_dxdxcox);
+		const float ty = not_in_x_range * __saturatef((dy * co.y * diffx + dy * co.z * diffy) * rcp_dydycoz);
+		max_pos = {px + tx * dx, py + ty * dy};
+		
+		const float2 max_pos_diff = {mean.x - max_pos.x, mean.y - max_pos.y};
+		max_contrib_power = evaluate_opacity_factor(max_pos_diff.x, max_pos_diff.y, co);
+	}
+
+	return max_contrib_power;
+}
+
+
+__device__ inline int computeTilebasedCullingTileCount(
+	const float4 co_init, 
+	const float2 xy_init, 
+	const float opacity_power_threshold_init,
+	const uint2 rect_min_init, 
+	const uint2 rect_max_init)
+{
+	const int32_t tile_count_init = (rect_max_init.y - rect_min_init.y) * (rect_max_init.x - rect_min_init.x);
+
+	int tile_count = 0;
+	const uint32_t rect_width = (rect_max_init.x - rect_min_init.x);
+	for (int tile_idx = 0; tile_idx < tile_count_init; tile_idx++)
+	{
+		const int y = (tile_idx / rect_width) + rect_min_init.y;
+		const int x = (tile_idx % rect_width) + rect_min_init.x;
+
+		const glm::vec2 tile_min = {x * BLOCK_X, y * BLOCK_Y};
+		const glm::vec2 tile_max = {(x + 1) * BLOCK_X - 1, (y + 1) * BLOCK_Y - 1};
+
+		glm::vec2 max_pos;
+		float max_opac_factor = max_contrib_power_rect_gaussian_float<BLOCK_X-1, BLOCK_Y-1>(co_init, xy_init, tile_min, tile_max, max_pos);
+		tile_count += (max_opac_factor <= opacity_power_threshold_init);
+	}
+
+	return tile_count;
+}
+
 #define CHECK_CUDA(A, debug) 														 \
 	A; 																				 \
 	if(debug) { 																	 \

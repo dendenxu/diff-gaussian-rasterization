@@ -69,6 +69,27 @@ We can shave off another 2-3ms for the backward pass at the start of the trainin
 
 Thus by default only the `__shared__` memory optimization is enabled and in use.
 
+## Tile-Based Culling
+
+Using the method mentioned: [StopThePop: Sorted Gaussian Splatting for View-Consistent Real-time Rendering](https://github.com/r4dl/StopThePop-Rasterization), we borrow the tile-based culling scheme here to reduce the computational cost during training and rendering.
+
+This section of code is directly adapted from their repository.
+
+```c++
+...
+    constexpr float alpha_threshold = 1.0f / 255.0f;
+    const float opacity_power_threshold = log(conic_opacity[idx].w / alpha_threshold);
+    glm::vec2 max_pos;
+    const glm::vec2 tile_min = {x * BLOCK_X, y * BLOCK_Y};
+    const glm::vec2 tile_max = {(x + 1) * BLOCK_X - 1, (y + 1) * BLOCK_Y - 1};
+    float max_opac_factor = max_contrib_power_rect_gaussian_float<BLOCK_X-1, BLOCK_Y-1>(conic_opacity[idx], points_xy[idx], tile_min, tile_max, max_pos);
+
+    if (max_opac_factor > opacity_power_threshold) {
+        continue;
+    }
+...
+```
+
 ## Tile-Mask Rendering
 
 **Note: this api hasn't been fully tested yet.**
