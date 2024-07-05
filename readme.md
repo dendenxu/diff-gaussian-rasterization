@@ -2,6 +2,8 @@
 
 ## Faster Backward Pass
 
+This is only faster if there're large number of semi-transparent (almost) transparent Gaussians to be rendered since it might introduce some small overheads for regular rendering.
+
 The original backward implementation uses `atomicAdd` on global CUDA memory.
 
 We further accelerate this process by making use of the `__shared__` memory in a thread block to store the temporal accumulated gradients, just like the original did to the gaussian properties.
@@ -69,7 +71,7 @@ We can shave off another 2-3ms for the backward pass at the start of the trainin
 
 Thus by default only the `__shared__` memory optimization is enabled and in use.
 
-Note: this seems slower...
+Note: this seems slower... See: https://developer.nvidia.com/blog/gpu-pro-tip-fast-histograms-using-shared-atomics-maxwell
 
 ## Tile-Based Culling
 

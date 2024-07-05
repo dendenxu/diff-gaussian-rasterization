@@ -1210,6 +1210,7 @@ renderCUDAShared(
 	bool done = !inside;
 	int toDo = range.y - range.x;
 
+	__shared__ int collected_id[BLOCK_SIZE];
 	__shared__ float2 collected_xy[BLOCK_SIZE];
 	__shared__ float4 collected_conic_opacity[BLOCK_SIZE];
 	__shared__ float collected_colors[C * BLOCK_SIZE];
@@ -1265,6 +1266,7 @@ renderCUDAShared(
 		if (range.x + progress < range.y)
 		{
 			const int coll_id = point_list[range.y - progress - 1];
+			collected_id[block.thread_rank()] = coll_id;
 			collected_xy[block.thread_rank()] = points_xy_image[coll_id];
 			collected_conic_opacity[block.thread_rank()] = conic_opacity[coll_id];
 			for (int i = 0; i < C; i++)
@@ -1379,9 +1381,9 @@ renderCUDAShared(
 		}
 		block.sync();
 
-		if (range.x + progress < range.y)
+		if (range.x + progress < range.y && s_dL_dmean2D[block.thread_rank()].x != 0.0) // not exactly zero
 		{
-			const int global_id = point_list[range.y - progress - 1];
+			const int global_id = collected_id[block.thread_rank()];
 
 			// Shared gradient accumulation in this block
 			atomicAdd(&dL_dmean2D[global_id].x, s_dL_dmean2D[block.thread_rank()].x);
@@ -1474,19 +1476,20 @@ renderCUDAWarp(
 	bool done = !inside;
 	int toDo = range.y - range.x;
 
+	__shared__ int collected_id[BLOCK_SIZE];
 	__shared__ float2 collected_xy[BLOCK_SIZE];
 	__shared__ float4 collected_conic_opacity[BLOCK_SIZE];
 	__shared__ float collected_colors[C * BLOCK_SIZE];
 	__shared__ float collected_depths[BLOCK_SIZE];
 
-	// Heuristic, gaussians are likely to be updated by the same block (same tile)
-	// Thus it should be faster to first aggregate the gradients inside this block and update them to the global memory in just one go
-	__shared__ float3 s_dL_dmean2D[BLOCK_SIZE];
-	__shared__ float3 s_dL_dabsmean2D[BLOCK_SIZE];
-	__shared__ float4 s_dL_dconic2D[BLOCK_SIZE];
-	__shared__ float s_dL_dopacity[BLOCK_SIZE];
-	__shared__ float s_dL_dcolors[C * BLOCK_SIZE];
-	__shared__ float s_dL_ddepths[BLOCK_SIZE];
+	// // Heuristic, gaussians are likely to be updated by the same block (same tile)
+	// // Thus it should be faster to first aggregate the gradients inside this block and update them to the global memory in just one go
+	// __shared__ float3 s_dL_dmean2D[BLOCK_SIZE];
+	// __shared__ float3 s_dL_dabsmean2D[BLOCK_SIZE];
+	// __shared__ float4 s_dL_dconic2D[BLOCK_SIZE];
+	// __shared__ float s_dL_dopacity[BLOCK_SIZE];
+	// __shared__ float s_dL_dcolors[C * BLOCK_SIZE];
+	// __shared__ float s_dL_ddepths[BLOCK_SIZE];
 
 	// In the forward, we stored the final value for T, the
 	// product of all (1 - alpha) factors. 
@@ -1531,29 +1534,30 @@ renderCUDAWarp(
 		if (range.x + progress < range.y)
 		{
 			const int coll_id = point_list[range.y - progress - 1];
+			collected_id[local_rank] = coll_id;
 			collected_xy[local_rank] = points_xy_image[coll_id];
 			collected_conic_opacity[local_rank] = conic_opacity[coll_id];
 			for (int i = 0; i < C; i++)
 				collected_colors[i * BLOCK_SIZE + local_rank] = colors[coll_id * C + i];
 			collected_depths[local_rank] = depths[coll_id];
 
-			// Shared gradient accumulation in this block
-			s_dL_dmean2D[local_rank].x = 0.0f;
-			s_dL_dmean2D[local_rank].y = 0.0f;
-			s_dL_dabsmean2D[local_rank].x = 0.0f;
-			s_dL_dabsmean2D[local_rank].y = 0.0f;
-			s_dL_dconic2D[local_rank].x = 0.0f;
-			s_dL_dconic2D[local_rank].y = 0.0f;
-			s_dL_dconic2D[local_rank].w = 0.0f;
-			for (int i = 0; i < C; i++)
-				s_dL_dcolors[i * BLOCK_SIZE + local_rank] = 0.0f;
-			s_dL_dopacity[local_rank] = 0.0f;
-			s_dL_ddepths[local_rank] = 0.0f;
+			// // Shared gradient accumulation in this block
+			// s_dL_dmean2D[local_rank].x = 0.0f;
+			// s_dL_dmean2D[local_rank].y = 0.0f;
+			// s_dL_dabsmean2D[local_rank].x = 0.0f;
+			// s_dL_dabsmean2D[local_rank].y = 0.0f;
+			// s_dL_dconic2D[local_rank].x = 0.0f;
+			// s_dL_dconic2D[local_rank].y = 0.0f;
+			// s_dL_dconic2D[local_rank].w = 0.0f;
+			// for (int i = 0; i < C; i++)
+			// 	s_dL_dcolors[i * BLOCK_SIZE + local_rank] = 0.0f;
+			// s_dL_dopacity[local_rank] = 0.0f;
+			// s_dL_ddepths[local_rank] = 0.0f;
 		}
 		block.sync();
 
 		// Iterate over Gaussians
-		for (int j = 0; j < min(BLOCK_SIZE, toDo); j++)
+		for (int j = 0; !done && j < min(BLOCK_SIZE, toDo); j++)
 		{
 			float2 xy = { 0.0f };
 			float2 d = { 0.0f };
@@ -1579,14 +1583,21 @@ renderCUDAWarp(
 			float4 w_dL_dconic2D = { 0.0f };
 			float w_dL_dopacity = 0.0f;
 
-			if (done)
-				goto reduce;
+			int global_id;
+			bool early_stop = false;
+
+			// if (done) {
+			// 	early_stop = true;
+			// 	goto reduce;
+			// }
 
 			// Keep track of current Gaussian ID. Skip, if this one
 			// is behind the last contributor for this pixel.
 			contributor--;
-			if (contributor >= last_contributor)
+			if (contributor >= last_contributor) {
+				early_stop = true;
 				goto reduce;
+			}
 				// continue;
 
 			// Compute blending values, as before.
@@ -1594,14 +1605,18 @@ renderCUDAWarp(
 			d = { xy.x - pixf.x, xy.y - pixf.y };
 			con_o = collected_conic_opacity[j];
 			power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
-			if (power > 0.0f)
-				goto reduce;
+			if (power > 0.0f) {
+				early_stop = true;
+				goto reduce; // early stopping
+			}
 				// continue;
 
 			G = exp(power);
 			alpha = min(0.99f, con_o.w * G);
-			if (alpha < 1.0f / 255.0f)
-				goto reduce;
+			if (alpha < 1.0f / 255.0f) {
+				early_stop = true;
+				goto reduce; // early stopping
+			}
 				// continue;
 
 			T = T / (1.f - alpha);
@@ -1679,56 +1694,75 @@ renderCUDAWarp(
 			w_dL_dopacity = G * dL_dalpha;
 
 		reduce:
-			// Call reduce sum and append results to __shared__ memory
-			for (int ch = 0; ch < C; ch++) {
-				w_dL_dcolors[ch] = warpReduceSum(w_dL_dcolors[ch]);
-			}
-			w_dL_ddepths = warpReduceSum(w_dL_ddepths);
-			w_dL_dmean2D.x = warpReduceSum(w_dL_dmean2D.x);
-			w_dL_dmean2D.y = warpReduceSum(w_dL_dmean2D.y);
-			w_dL_dabsmean2D.x = warpReduceSum(w_dL_dabsmean2D.x);
-			w_dL_dabsmean2D.y = warpReduceSum(w_dL_dabsmean2D.y);
-			w_dL_dconic2D.x = warpReduceSum(w_dL_dconic2D.x);
-			w_dL_dconic2D.y = warpReduceSum(w_dL_dconic2D.y);
-			w_dL_dconic2D.w = warpReduceSum(w_dL_dconic2D.w);
-			w_dL_dopacity = warpReduceSum(w_dL_dopacity);
+			early_stop = warpReduceSum(early_stop);
 
-			// Use a single thread from each warp to perform block level reduction
-			if (local_rank % warp.size() == 0) {
+			// If the whole warp votes for early stop, no need to do any further reduction or computation
+			if (!early_stop) {
+					
+				// Call reduce sum and append results to __shared__ memory
 				for (int ch = 0; ch < C; ch++) {
-					atomicAdd(&(s_dL_dcolors[ch * BLOCK_SIZE + j]), w_dL_dcolors[ch]);
+					w_dL_dcolors[ch] = warpReduceSum(w_dL_dcolors[ch]);
 				}
-				atomicAdd(&(s_dL_ddepths[j]), w_dL_ddepths);
-				atomicAdd(&s_dL_dmean2D[j].x, w_dL_dmean2D.x);
-				atomicAdd(&s_dL_dmean2D[j].y, w_dL_dmean2D.y);
-				atomicAdd(&s_dL_dabsmean2D[j].x, w_dL_dabsmean2D.x);
-				atomicAdd(&s_dL_dabsmean2D[j].y, w_dL_dabsmean2D.y);
-				atomicAdd(&s_dL_dconic2D[j].x, w_dL_dconic2D.x);
-				atomicAdd(&s_dL_dconic2D[j].y, w_dL_dconic2D.y);
-				atomicAdd(&s_dL_dconic2D[j].w, w_dL_dconic2D.w);
-				atomicAdd(&(s_dL_dopacity[j]), w_dL_dopacity);
+				w_dL_ddepths = warpReduceSum(w_dL_ddepths);
+				w_dL_dmean2D.x = warpReduceSum(w_dL_dmean2D.x);
+				w_dL_dmean2D.y = warpReduceSum(w_dL_dmean2D.y);
+				w_dL_dabsmean2D.x = warpReduceSum(w_dL_dabsmean2D.x);
+				w_dL_dabsmean2D.y = warpReduceSum(w_dL_dabsmean2D.y);
+				w_dL_dconic2D.x = warpReduceSum(w_dL_dconic2D.x);
+				w_dL_dconic2D.y = warpReduceSum(w_dL_dconic2D.y);
+				w_dL_dconic2D.w = warpReduceSum(w_dL_dconic2D.w);
+				w_dL_dopacity = warpReduceSum(w_dL_dopacity);
+
+				// Use a single thread from each warp to perform block level reduction
+				if (local_rank % warp.size() == 0) {
+					// for (int ch = 0; ch < C; ch++) {
+					// 	atomicAdd(&(s_dL_dcolors[ch * BLOCK_SIZE + j]), w_dL_dcolors[ch]);
+					// }
+					// atomicAdd(&(s_dL_ddepths[j]), w_dL_ddepths);
+					// atomicAdd(&s_dL_dmean2D[j].x, w_dL_dmean2D.x);
+					// atomicAdd(&s_dL_dmean2D[j].y, w_dL_dmean2D.y);
+					// atomicAdd(&s_dL_dabsmean2D[j].x, w_dL_dabsmean2D.x);
+					// atomicAdd(&s_dL_dabsmean2D[j].y, w_dL_dabsmean2D.y);
+					// atomicAdd(&s_dL_dconic2D[j].x, w_dL_dconic2D.x);
+					// atomicAdd(&s_dL_dconic2D[j].y, w_dL_dconic2D.y);
+					// atomicAdd(&s_dL_dconic2D[j].w, w_dL_dconic2D.w);
+					// atomicAdd(&(s_dL_dopacity[j]), w_dL_dopacity);
+					global_id = collected_id[j];
+
+					// Shared gradient accumulation in this block
+					for (int i = 0; i < C; i++)
+						atomicAdd(&(dL_dcolors[global_id * C + i]), w_dL_dcolors[i]);
+					atomicAdd(&dL_dmean2D[global_id].x, w_dL_dmean2D.x);
+					atomicAdd(&dL_dmean2D[global_id].y, w_dL_dmean2D.y);
+					atomicAdd(&dL_dabsmean2D[global_id].x, w_dL_dabsmean2D.x);
+					atomicAdd(&dL_dabsmean2D[global_id].y, w_dL_dabsmean2D.y);
+					atomicAdd(&dL_dconic2D[global_id].x, w_dL_dconic2D.x);
+					atomicAdd(&dL_dconic2D[global_id].y, w_dL_dconic2D.y);
+					atomicAdd(&dL_dconic2D[global_id].w, w_dL_dconic2D.w);
+					atomicAdd(&(dL_dopacity[global_id]), w_dL_dopacity);
+					atomicAdd(&(dL_ddepths[global_id]), w_dL_ddepths);
+				}
 			}
-
 		}
-		block.sync();
+		// block.sync();
 
-		if (range.x + progress < range.y)
-		{
-			const int global_id = point_list[range.y - progress - 1];
+		// if (range.x + progress < range.y)
+		// {
+		// 	const int global_id = point_list[range.y - progress - 1];
 
-			// Shared gradient accumulation in this block
-			atomicAdd(&dL_dmean2D[global_id].x, s_dL_dmean2D[local_rank].x);
-			atomicAdd(&dL_dmean2D[global_id].y, s_dL_dmean2D[local_rank].y);
-			atomicAdd(&dL_dabsmean2D[global_id].x, s_dL_dabsmean2D[local_rank].x);
-			atomicAdd(&dL_dabsmean2D[global_id].y, s_dL_dabsmean2D[local_rank].y);
-			atomicAdd(&dL_dconic2D[global_id].x, s_dL_dconic2D[local_rank].x);
-			atomicAdd(&dL_dconic2D[global_id].y, s_dL_dconic2D[local_rank].y);
-			atomicAdd(&dL_dconic2D[global_id].w, s_dL_dconic2D[local_rank].w);
-			for (int i = 0; i < C; i++)
-				atomicAdd(&(dL_dcolors[global_id * C + i]), s_dL_dcolors[i * BLOCK_SIZE + block.thread_rank()]);
-			atomicAdd(&(dL_dopacity[global_id]), s_dL_dopacity[block.thread_rank()]);
-			atomicAdd(&(dL_ddepths[global_id]), s_dL_ddepths[block.thread_rank()]);
-		}
+		// 	// Shared gradient accumulation in this block
+		// 	atomicAdd(&dL_dmean2D[global_id].x, s_dL_dmean2D[local_rank].x);
+		// 	atomicAdd(&dL_dmean2D[global_id].y, s_dL_dmean2D[local_rank].y);
+		// 	atomicAdd(&dL_dabsmean2D[global_id].x, s_dL_dabsmean2D[local_rank].x);
+		// 	atomicAdd(&dL_dabsmean2D[global_id].y, s_dL_dabsmean2D[local_rank].y);
+		// 	atomicAdd(&dL_dconic2D[global_id].x, s_dL_dconic2D[local_rank].x);
+		// 	atomicAdd(&dL_dconic2D[global_id].y, s_dL_dconic2D[local_rank].y);
+		// 	atomicAdd(&dL_dconic2D[global_id].w, s_dL_dconic2D[local_rank].w);
+		// 	for (int i = 0; i < C; i++)
+		// 		atomicAdd(&(dL_dcolors[global_id * C + i]), s_dL_dcolors[i * BLOCK_SIZE + local_rank]);
+		// 	atomicAdd(&(dL_dopacity[global_id]), s_dL_dopacity[local_rank]);
+		// 	atomicAdd(&(dL_ddepths[global_id]), s_dL_ddepths[local_rank]);
+		// }
 
 	}
 }
