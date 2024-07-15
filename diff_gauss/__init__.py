@@ -18,6 +18,13 @@ BLOCK_X = 16
 BLOCK_Y = 16
 
 
+def fused_preprocess_4d_sparse(xyz3, cov6, ms3, cov_t1, occ1, t1, base, feat, t, inverse, world_view_transform, full_proj_transform, cam_pos, deg, deg_t, duration):
+    # Mark visible points (based on frustum culling for camera) with a boolean
+    with torch.no_grad():
+        mask, occ1, xyz3, rgb3 = _C.fused_preprocess_4d_sparse(xyz3, cov6, ms3, cov_t1, occ1, t1, base, feat, t, inverse, world_view_transform, full_proj_transform, cam_pos, deg, deg_t, duration)
+
+    return mask, occ1, xyz3, rgb3  # mask and output
+
 def fused_preprocess_4d(xyz3, cov6, ms3, cov_t1, occ1, t1, feat, t, world_view_transform, full_proj_transform, cam_pos, deg, deg_t, duration):
     # Mark visible points (based on frustum culling for camera) with a boolean
     with torch.no_grad():
