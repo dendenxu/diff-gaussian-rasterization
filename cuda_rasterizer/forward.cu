@@ -70,15 +70,8 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 	return glm::max(result, 0.0f);
 }
 
-
-__device__ glm::vec3 computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeffs, const float* shs, const glm::vec3* dirs, const float* dirs_t, const float time_duration)
+__device__ glm::vec3 eval4DSH(int deg, int deg_t, int max_coeffs, const glm::vec3* sh, const glm::vec3 dir, const float dir_t, const float time_duration)
 {
-	// The implementation is loosely based on code for
-	// "Differentiable Point-Based Radiance Fields for
-	// Efficient View Synthesis" by Zhang et al. (2022)
-	glm::vec3* sh = ((glm::vec3*)shs) + idx * max_coeffs;
-	glm::vec3 dir = dirs[idx];
-	const float dir_t = dirs_t[idx];
 
 	float l0m0 = SH_C0;
 	glm::vec3 result = l0m0 * sh[0];
@@ -183,6 +176,17 @@ __device__ glm::vec3 computeColorFromSH_4D(int idx, int deg, int deg_t, int max_
 	result += 0.5f;
 
 	return result;
+}
+
+__device__ glm::vec3 computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeffs, const float* shs, const glm::vec3* dirs, const float* dirs_t, const float time_duration)
+{
+	// The implementation is loosely based on code for
+	// "Differentiable Point-Based Radiance Fields for
+	// Efficient View Synthesis" by Zhang et al. (2022)
+	glm::vec3* sh = ((glm::vec3*)shs) + idx * max_coeffs;
+	glm::vec3 dir = dirs[idx];
+	const float dir_t = dirs_t[idx];
+	return eval4DSH(deg, deg_t, max_coeffs, sh, dir, dir_t, time_duration);
 }
 
 
@@ -408,6 +412,67 @@ void FORWARD::computeCov4D(
 		cov_t);
 }
 
+// Perform initial steps for each Gaussian prior to rasterization.
+template<int C>
+__global__ void fusedPreprocess4DCUDA(int P,
+	const int deg,
+	const int deg_t,
+	const int M,
+	const glm::vec3* means3D,
+	const float* cov,
+	const glm::vec3* ms,
+	const float* cov_t,
+	const float* opacities,
+	const float* t1,
+	const float* shs,
+	const float* t,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float* cam_pos,
+	const float duration,
+	bool* mask,
+	float* occ1,
+	glm::vec3* xyz3,
+	glm::vec3* rgb3)
+{
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+
+	// Initialize radius and touched tiles to 0. If this isn't changed,
+	// this Gaussian will not be processed further.
+	mask[idx] = false;
+
+	// Perform marginalization using the current time
+	float dt = t[idx] - t1[idx];
+	float marginal_t = __expf(-0.5 * dt * dt / cov_t[idx]);
+	if (marginal_t <= 0.005) {
+		return;
+	}
+
+	glm::vec3 xyz = means3D[idx] + ms[idx] * dt;
+
+	// Filter by frustum
+	// Perform near culling, quit if outside.
+	float3 pos {xyz.x, xyz.y, xyz.z};
+	if (!check_frustum(pos, viewmatrix, projmatrix) || opacities[idx] < 0.0001f) {
+		return;
+	}
+
+	float occ = marginal_t * opacities[idx];
+
+	// Computing 4D SH using the current time and viewing direction
+	glm::vec3 dir = xyz - *(glm::vec3*)cam_pos;
+	dir = dir / glm::length(dir);
+	const glm::vec3* sh = ((glm::vec3*)shs) + idx * M;
+	glm::vec3 rgb = eval4DSH(deg, deg_t, M, sh, dir, dt, duration);
+	// glm::vec3 rgb {1.0f};
+
+	mask[idx] = true;
+	occ1[idx] = occ;
+	xyz3[idx] = xyz;
+	rgb3[idx] = rgb;
+}
 
 // Perform initial steps for each Gaussian prior to rasterization.
 template<int C>
@@ -645,7 +710,7 @@ renderCUDA(
 			// Obtain alpha by multiplying with Gaussian opacity
 			// and its exponential falloff from mean.
 			// Avoid numerical instabilities (see paper appendix). 
-			float alpha = min(0.99f, con_o.w * exp(power));
+			float alpha = min(0.99f, con_o.w * __expf(power));
 			if (alpha < 1.0f / 255.0f)
 				continue;
 			float test_T = T * (1 - alpha);
@@ -766,4 +831,48 @@ void FORWARD::preprocess(int P, int D, int M,
 		tiles_touched,
 		prefiltered
 		);
+}
+
+void FORWARD::fusedPreprocess4D(int P,
+	const int deg,
+	const int deg_t,
+	const int M,
+	const glm::vec3* means3D,
+	const float* cov,
+	const glm::vec3* ms,
+	const float* cov_t,
+	const float* opacities,
+	const float* t1,
+	const float* shs,
+	const float* t,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float* cam_pos,
+	const float duration,
+	bool* mask,
+	float* occ1,
+	glm::vec3* xyz3,
+	glm::vec3* rgb3)
+{
+	fusedPreprocess4DCUDA<NUM_CHANNELS> << <(P + 255) / 256, 256 >> > (
+		P,
+		deg,
+		deg_t,
+		M,
+		means3D,
+		cov,
+		ms,
+		cov_t,
+		opacities,
+		t1,
+		shs,
+		t,
+		viewmatrix,
+		projmatrix,
+		cam_pos,
+		duration,
+		mask,
+		occ1,
+		xyz3,
+		rgb3);
 }

@@ -167,6 +167,24 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	return (p_proj.z > -1 - padding) && (p_proj.z < 1 + padding) && (p_proj.x > -1 - xy_padding) && (p_proj.x < 1. + xy_padding) && (p_proj.y > -1 - xy_padding) && (p_proj.y < 1. + xy_padding);
 }
 
+__forceinline__ __device__ bool check_frustum(
+	const float3 p_orig,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float padding = 0.01f, // padding in ndc space // TODO: add api for changing this
+	const float xy_padding = 0.5f // padding in ndc space // TODO: add api for changing this
+	)
+{
+	float3 p_view = transformPoint4x3(p_orig, viewmatrix); // write this outside
+
+	// Bring points to screen space
+	float4 p_hom = transformPoint4x4(p_orig, projmatrix);
+	float p_w = 1.0f / (p_hom.w + 0.0000001f);
+	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
+
+	return (p_proj.z > -1 - padding) && (p_proj.z < 1 + padding) && (p_proj.x > -1 - xy_padding) && (p_proj.x < 1. + xy_padding) && (p_proj.y > -1 - xy_padding) && (p_proj.y < 1. + xy_padding);
+}
+
 
 // As mentioned in: StopThePop: Sorted Gaussian Splatting for View-Consistent Real-time Rendering
 __device__ inline float evaluate_opacity_factor(const float dx, const float dy, const float4 co) 

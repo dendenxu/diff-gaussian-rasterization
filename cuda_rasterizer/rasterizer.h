@@ -22,6 +22,28 @@ namespace CudaRasterizer
 	{
 	public:
 
+		static void fusedPreprocess4D(
+			const int P,
+			const int deg,
+			const int deg_t,
+			const int M,
+			const float* means3D,
+			const float* cov,
+			const float* ms,
+			const float* cov_t,
+			const float* opacities,
+			const float* t1,
+			const float* sh,
+			const float* t,
+			const float* viewmatrix,
+			const float* projmatrix,
+			const float* cam_pos,
+			const float duration,
+			bool* mask,
+			float* occ1,
+			float* xyz3,
+			float* rgb3);
+
 		static void markVisible(
 			int P,
 			float* means3D,

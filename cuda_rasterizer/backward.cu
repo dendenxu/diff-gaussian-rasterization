@@ -1089,7 +1089,7 @@ renderCUDA(
 			if (power > 0.0f)
 				continue;
 
-			const float G = exp(power);
+			const float G = __expf(power);
 			const float alpha = min(0.99f, con_o.w * G);
 			if (alpha < 1.0f / 255.0f)
 				continue;
@@ -1305,7 +1305,7 @@ renderCUDAShared(
 			if (power > 0.0f)
 				continue;
 
-			const float G = exp(power);
+			const float G = __expf(power);
 			const float alpha = min(0.99f, con_o.w * G);
 			if (alpha < 1.0f / 255.0f)
 				continue;
@@ -1611,7 +1611,7 @@ renderCUDAWarp(
 			}
 				// continue;
 
-			G = exp(power);
+			G = __expf(power);
 			alpha = min(0.99f, con_o.w * G);
 			if (alpha < 1.0f / 255.0f) {
 				early_stop = true;

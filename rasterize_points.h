@@ -66,6 +66,23 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	const torch::Tensor& out_alpha,
 	const bool debug);
 		
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> fusedPreprocess4D(
+		const torch::Tensor& means3D,
+		const torch::Tensor& cov,
+		const torch::Tensor& ms,
+		const torch::Tensor& cov_t,
+		const torch::Tensor& opacities,
+		const torch::Tensor& t1,
+		const torch::Tensor& sh,
+		const torch::Tensor& t,
+		const torch::Tensor& viewmatrix,
+		const torch::Tensor& projmatrix,
+		const torch::Tensor& cam_pos,
+		const int deg,
+		const int deg_t,
+		const float duration
+		);
+
 torch::Tensor markVisible(
 		torch::Tensor& means3D,
 		torch::Tensor& viewmatrix,

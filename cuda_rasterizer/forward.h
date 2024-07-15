@@ -65,6 +65,27 @@ namespace FORWARD
 		float* out_color,
 		float* out_depth);
 
+	void fusedPreprocess4D(int P,
+		const int deg,
+		const int deg_t,
+		const int M,
+		const glm::vec3* means3D,
+		const float* cov,
+		const glm::vec3* ms,
+		const float* cov_t,
+		const float* opacities,
+		const float* t1,
+		const float* shs,
+		const float* t,
+		const float* viewmatrix,
+		const float* projmatrix,
+		const float* cam_pos,
+		const float duration,
+		bool* mask,
+		float* occ1,
+		glm::vec3* xyz3,
+		glm::vec3* rgb3);
+
 	void computeCov4D(int P,
 		const glm::vec4* scaling_xyzt,
 		const glm::vec4* rotation_l,

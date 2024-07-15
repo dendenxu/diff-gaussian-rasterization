@@ -252,6 +252,52 @@ void CudaRasterizer::Rasterizer::computeSH4DBackward(
 	);
 }
 
+// Marginalization & color computation
+void CudaRasterizer::Rasterizer::fusedPreprocess4D(
+	const int P,
+	const int deg,
+	const int deg_t,
+	const int M,
+	const float* means3D,
+	const float* cov,
+	const float* ms,
+	const float* cov_t,
+	const float* opacities,
+	const float* t1,
+	const float* sh,
+	const float* t,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float* cam_pos,
+	const float duration,
+	bool* mask,
+	float* occ1,
+	float* xyz3,
+	float* rgb3)
+{
+	FORWARD::fusedPreprocess4D(
+		P,
+		deg,
+		deg_t,
+		M,
+		(glm::vec3*)means3D,
+		cov,
+		(glm::vec3*)ms,
+		cov_t,
+		opacities,
+		t1,
+		sh,
+		t,
+		viewmatrix,
+		projmatrix,
+		cam_pos,
+		duration,
+		mask,
+		occ1,
+		(glm::vec3*)xyz3,
+		(glm::vec3*)rgb3);
+}
+
 // Mark Gaussians as visible/invisible, based on view frustum testing
 void CudaRasterizer::Rasterizer::markVisible(
 	int P,

@@ -233,6 +233,55 @@ torch::Tensor markVisible(
   return present;
 }
 
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> fusedPreprocess4D(
+	const torch::Tensor& means3D,
+	const torch::Tensor& cov,
+	const torch::Tensor& ms,
+	const torch::Tensor& cov_t,
+	const torch::Tensor& opacities,
+	const torch::Tensor& t1,
+	const torch::Tensor& sh,
+	const torch::Tensor& t,
+	const torch::Tensor& viewmatrix,
+	const torch::Tensor& projmatrix,
+	const torch::Tensor& cam_pos,
+	const int deg,
+	const int deg_t,
+	const float duration
+	)
+{ 
+  const int P = means3D.size(0);
+  int M = 0;
+  if(sh.size(0) != 0) M = sh.size(1);
+
+  torch::Tensor mask = torch::empty({P, 1}, means3D.options().dtype(at::kBool));
+  torch::Tensor occ1 = torch::empty({P, 1}, means3D.options());
+  torch::Tensor xyz3 = torch::empty({P, 3}, means3D.options());
+  torch::Tensor rgb3 = torch::empty({P, 3}, means3D.options());
+ 
+  if(P != 0)
+  {
+	CudaRasterizer::Rasterizer::fusedPreprocess4D(P, deg, deg_t, M,
+		means3D.contiguous().data_ptr<float>(),
+		cov.contiguous().data_ptr<float>(),
+		ms.contiguous().data_ptr<float>(),
+		cov_t.contiguous().data_ptr<float>(),
+		opacities.contiguous().data_ptr<float>(),
+		t1.contiguous().data_ptr<float>(),
+		sh.contiguous().data_ptr<float>(),
+		t.contiguous().data_ptr<float>(),
+		viewmatrix.contiguous().data_ptr<float>(),
+		projmatrix.contiguous().data_ptr<float>(),
+		cam_pos.contiguous().data_ptr<float>(),
+		duration,
+		mask.contiguous().data_ptr<bool>(),
+		occ1.contiguous().data_ptr<float>(),
+		xyz3.contiguous().data_ptr<float>(),
+		rgb3.contiguous().data_ptr<float>());
+	}
+	return std::make_tuple(mask, occ1, xyz3, rgb3);
+}
+
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4D(
 		torch::Tensor& scaling_xyzt,
 		torch::Tensor& rotation_l,
