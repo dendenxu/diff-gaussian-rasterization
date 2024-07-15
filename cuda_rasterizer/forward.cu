@@ -448,7 +448,7 @@ __global__ void fusedPreprocess4DSparseCUDA(int P,
 	// Perform marginalization using the current time
 	float dt = t[idx] - t1[idx];
 	float marginal_t = __expf(-0.5 * dt * dt / cov_t[idx]);
-	if (marginal_t <= 0.005) {
+	if (marginal_t <= 0.05) {
 		return;
 	}
 
