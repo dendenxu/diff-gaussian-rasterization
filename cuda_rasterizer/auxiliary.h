@@ -152,7 +152,7 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	bool prefiltered,
 	float3& p_view, // reference
 	const float padding = 0.01f, // padding in ndc space // TODO: add api for changing this
-	const float xy_padding = 0.5f // padding in ndc space // TODO: add api for changing this
+	const float xy_padding = 0.2f // padding in ndc space // TODO: add api for changing this
 	)
 {
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
@@ -172,7 +172,7 @@ __forceinline__ __device__ bool check_frustum(
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float padding = 0.01f, // padding in ndc space // TODO: add api for changing this
-	const float xy_padding = 0.5f // padding in ndc space // TODO: add api for changing this
+	const float xy_padding = 0.2f // padding in ndc space // TODO: add api for changing this
 	)
 {
 	float3 p_view = transformPoint4x3(p_orig, viewmatrix); // write this outside
