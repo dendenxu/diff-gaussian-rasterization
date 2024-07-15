@@ -29,6 +29,7 @@ setup(
                 "rasterize_points.cu",
                 "ext.cpp"],
             extra_compile_args={"nvcc": [
+                "-O3", 
                 "-Xcompiler", 
                 "-fno-gnu-unique", 
                 # "-G",
