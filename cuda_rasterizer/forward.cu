@@ -486,7 +486,7 @@ __global__ void fusedPreprocess4DSparseCUDA(int P,
 	dir = dir / glm::length(dir);
 	const glm::vec3* sh = ((glm::vec3*)shs) + sparse[idx] * M;
 	rgb = eval4DSH(deg, deg_t, M, sh, dir, dt, duration);
-	// rgb = min(max(rgb, 0.0f), 1.0f);
+	rgb = min(max(rgb, 0.0f), 1.0f);
 	rgb3[idx] = rgb;
 }
 
