@@ -70,7 +70,7 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 	return glm::max(result, 0.0f);
 }
 
-__device__ glm::vec3 eval4DSH(int deg, int deg_t, int max_coeffs, const glm::vec3* sh, const glm::vec3 dir, const float dir_t, const float time_duration)
+__device__ glm::vec3 eval4DSH(int deg, int deg_t, const glm::vec3* sh, const glm::vec3 dir, const float dir_t, const float time_duration)
 {
 
 	float l0m0 = SH_C0;
@@ -178,6 +178,116 @@ __device__ glm::vec3 eval4DSH(int deg, int deg_t, int max_coeffs, const glm::vec
 	return result;
 }
 
+
+__device__ glm::vec3 eval4DSHResidual(int deg, int deg_t, const glm::vec3* sh, const glm::vec3 dir, const float dir_t, const float time_duration)
+{
+
+	float l0m0 = SH_C0;
+	// glm::vec3 result = l0m0 * sh[0];
+	glm::vec3 result {0.0f};
+
+	if (deg > 0)
+		{
+		float x = dir.x;
+		float y = dir.y;
+		float z = dir.z;
+
+		float l1m1 = -1 * SH_C1 * y;
+		float l1m0 = SH_C1 * z;
+		float l1p1 = -1 * SH_C1 * x;
+
+		result += 
+			l1m1 * sh[0] +
+			l1m0 * sh[1] +
+			l1p1 * sh[2];
+
+		if (deg > 1)
+		{
+			float xx = x * x, yy = y * y, zz = z * z;
+			float xy = x * y, yz = y * z, xz = x * z;
+
+			float l2m2 = SH_C2[0] * xy;
+			float l2m1 = SH_C2[1] * yz;
+			float l2m0 = SH_C2[2] * (2.0 * zz - xx - yy);
+			float l2p1 = SH_C2[3] * xz;
+			float l2p2 = SH_C2[4] * (xx - yy);
+
+			result +=
+				l2m2 * sh[3] +
+				l2m1 * sh[4] +
+				l2m0 * sh[5] +
+				l2p1 * sh[6] +
+				l2p2 * sh[7];
+
+			if (deg > 2)
+			{
+				float l3m3 = SH_C3[0] * y * (3 * xx - yy);
+				float l3m2 = SH_C3[1] * xy * z;
+				float l3m1 = SH_C3[2] * y * (4 * zz - xx - yy);
+				float l3m0 = SH_C3[3] * z * (2 * zz - 3 * xx - 3 * yy);
+				float l3p1 = SH_C3[4] * x * (4 * zz - xx - yy);
+				float l3p2 = SH_C3[5] * z * (xx - yy);
+				float l3p3 = SH_C3[6] * x * (xx - 3 * yy);
+
+				result +=
+					l3m3 * sh[8] +
+					l3m2 * sh[9] +
+					l3m1 * sh[10] +
+					l3m0 * sh[11] +
+					l3p1 * sh[12] +
+					l3p2 * sh[13] +
+					l3p3 * sh[14];
+
+				if (deg_t > 0){
+					float t1 = cos(2 * MY_PI * dir_t / time_duration);
+
+					result += t1 * (l0m0 * sh[15] +
+									l1m1 * sh[16] +
+									l1m0 * sh[17] +
+									l1p1 * sh[18] + 
+									l2m2 * sh[19] +
+									l2m1 * sh[20] +
+									l2m0 * sh[21] +
+									l2p1 * sh[22] +
+									l2p2 * sh[23] + 
+									l3m3 * sh[24] +
+									l3m2 * sh[25] +
+									l3m1 * sh[26] +
+									l3m0 * sh[27] +
+									l3p1 * sh[28] +
+									l3p2 * sh[29] +
+									l3p3 * sh[30]);
+
+					if (deg_t > 1){
+						float t2 = cos(2 * MY_PI * dir_t * 2 / time_duration);
+
+						result += t2 * (l0m0 * sh[31] +
+										l1m1 * sh[32] +
+										l1m0 * sh[33] +
+										l1p1 * sh[34] + 
+										l2m2 * sh[35] +
+										l2m1 * sh[36] +
+										l2m0 * sh[37] +
+										l2p1 * sh[38] +
+										l2p2 * sh[39] + 
+										l3m3 * sh[40] +
+										l3m2 * sh[41] +
+										l3m1 * sh[42] +
+										l3m0 * sh[43] +
+										l3p1 * sh[44] +
+										l3p2 * sh[45] +
+										l3p3 * sh[46]);
+					}
+
+				}
+			}
+		}
+	}
+	// result += 0.5f;
+
+	return result;
+}
+
 __device__ glm::vec3 computeColorFromSH_4D(int idx, int deg, int deg_t, int max_coeffs, const float* shs, const glm::vec3* dirs, const float* dirs_t, const float time_duration)
 {
 	// The implementation is loosely based on code for
@@ -186,7 +296,7 @@ __device__ glm::vec3 computeColorFromSH_4D(int idx, int deg, int deg_t, int max_
 	glm::vec3* sh = ((glm::vec3*)shs) + idx * max_coeffs;
 	glm::vec3 dir = dirs[idx];
 	const float dir_t = dirs_t[idx];
-	return eval4DSH(deg, deg_t, max_coeffs, sh, dir, dir_t, time_duration);
+	return eval4DSH(deg, deg_t, sh, dir, dir_t, time_duration);
 }
 
 
@@ -472,9 +582,7 @@ __global__ void fusedPreprocess4DSparseCUDA(int P,
 
 	// Handling sparse SH
 	glm::vec3 rgb = SH_C0 * bases[idx];
-	rgb += 0.5f;
-	rgb = min(max(rgb, 0.0f), 1.0f);
-	rgb3[idx] = rgb; // zero degree sh
+	rgb3[idx] = min(max(rgb + 0.5f, 0.0f), 1.0f); // zero degree sh
 	// rgb3[idx] = bases[idx]; // zero degree sh
 	
 	if (sparse[idx] == -1) {
@@ -485,9 +593,8 @@ __global__ void fusedPreprocess4DSparseCUDA(int P,
 	glm::vec3 dir = xyz - *(glm::vec3*)cam_pos;
 	dir = dir / glm::length(dir);
 	const glm::vec3* sh = ((glm::vec3*)shs) + sparse[idx] * M;
-	rgb = eval4DSH(deg, deg_t, M, sh, dir, dt, duration);
-	rgb = min(max(rgb, 0.0f), 1.0f);
-	rgb3[idx] = rgb;
+	rgb += eval4DSHResidual(deg, deg_t, sh, dir, dt, duration);
+	rgb3[idx] = min(max(rgb + 0.5f, 0.0f), 1.0f);
 }
 
 
@@ -547,7 +654,7 @@ __global__ void fusedPreprocess4DCUDA(int P,
 	glm::vec3 dir = xyz - *(glm::vec3*)cam_pos;
 	dir = dir / glm::length(dir);
 	const glm::vec3* sh = ((glm::vec3*)shs) + idx * M;
-	glm::vec3 rgb = eval4DSH(deg, deg_t, M, sh, dir, dt, duration);
+	glm::vec3 rgb = eval4DSH(deg, deg_t, sh, dir, dt, duration);
 
 	mask[idx] = true;
 	occ1[idx] = occ;
