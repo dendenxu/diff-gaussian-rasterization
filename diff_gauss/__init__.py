@@ -268,6 +268,23 @@ def mark_visible(positions: torch.Tensor, viewmatrix: torch.Tensor, projmatrix: 
 
     return visible
 
+def compute_cov_3d(scaling_xyz: torch.Tensor, rotation_l: torch.Tensor):
+    return _ComputeCov3D.apply(
+        scaling_xyz,
+        rotation_l)
+
+class _ComputeCov3D(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, scaling_xyz, rotation_l):
+        cov = _C.compute_cov_3d(scaling_xyz, rotation_l)
+        ctx.save_for_backward(scaling_xyz, rotation_l)
+        return cov
+
+    @staticmethod
+    def backward(ctx, grad_out_cov):
+        scaling_xyz, rotation_l = ctx.saved_tensors
+        grad_scaling_xyz, grad_rotation_l = _C.compute_cov_3d_backward(scaling_xyz, rotation_l, grad_out_cov)
+        return grad_scaling_xyz, grad_rotation_l
 
 def compute_cov_4d(scaling_xyzt: torch.Tensor, rotation_l: torch.Tensor, rotation_r: torch.Tensor):
     return _ComputeCov4D.apply(

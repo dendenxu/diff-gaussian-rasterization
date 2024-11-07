@@ -731,6 +731,45 @@ __device__ void computeCov3D(int idx, const glm::vec3 scale, float mod, const gl
 }
 
 
+__global__ void computeCov3DBackwardCUDA(int P,
+	const glm::vec3* scaling_xyz,
+	const glm::vec4* rotation_l,
+	const float* dL_dcov,
+	glm::vec3* dL_dscaling_xyz,
+	glm::vec4* dL_drotation_l)
+{
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+	computeCov3D(
+		idx,
+		scaling_xyz[idx],
+		1.0f,
+		rotation_l[idx],
+		// dL_dcov + idx * 6,
+		// dL_dscaling_xyz + idx,
+		// dL_drotation_l + idx);
+		dL_dcov,
+		dL_dscaling_xyz,
+		dL_drotation_l);
+}
+
+void BACKWARD::computeCov3DBackward(
+	int P,
+	const glm::vec3* scaling_xyz,
+	const glm::vec4* rotation_l,
+	const float* dL_dcov,
+	glm::vec3* dL_dscaling_xyz,
+	glm::vec4* dL_drotation_l)
+{
+	computeCov3DBackwardCUDA << <(P + 255) / 256, 256 >> > (
+		P,
+		scaling_xyz,
+		rotation_l,
+		dL_dcov,
+		dL_dscaling_xyz,
+		dL_drotation_l);
+}
 
 // Backward pass for the conversion of scale and rotation to a
 // 3D covariance matrix for each Gaussian.

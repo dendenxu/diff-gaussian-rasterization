@@ -107,6 +107,15 @@ torch::Tensor markVisible(
 		torch::Tensor& viewmatrix,
 		torch::Tensor& projmatrix);
 
+torch::Tensor computeCov3D(
+		torch::Tensor& scaling_xyz,
+		torch::Tensor& rotation_l);
+
+std::tuple<torch::Tensor, torch::Tensor> computeCov3DBackward(
+		torch::Tensor& scaling_xyz,
+		torch::Tensor& rotation_l,
+		torch::Tensor& dL_dcov);
+
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4D(
 		torch::Tensor& scaling_xyzt,
 		torch::Tensor& rotation_l,

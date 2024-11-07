@@ -158,6 +158,33 @@ __global__ void identifyTileRanges(int L, uint64_t* point_list_keys, uint2* rang
 		ranges[currtile].y = L;
 }
 
+void CudaRasterizer::Rasterizer::computeCov3D(int P,
+	const float* scaling_xyz,
+	const float* rotation_l,
+	float* cov)
+{
+	FORWARD::computeCov3D(
+		P,
+		(glm::vec3*)scaling_xyz,
+		(glm::vec4*)rotation_l,
+		cov);
+}
+
+void CudaRasterizer::Rasterizer::computeCov3DBackward(int P,
+	const float* scaling_xyz,
+	const float* rotation_l,
+	const float* dL_dcov,
+	float* dL_dscaling_xyz,
+	float* dL_drotation_l)
+{
+	BACKWARD::computeCov3DBackward(
+		P,
+		(glm::vec3*)scaling_xyz,
+		(glm::vec4*)rotation_l,
+		dL_dcov,
+		(glm::vec3*)dL_dscaling_xyz,
+		(glm::vec4*)dL_drotation_l);
+}
 
 void CudaRasterizer::Rasterizer::computeCov4D(int P,
 	const float* scaling_xyzt,

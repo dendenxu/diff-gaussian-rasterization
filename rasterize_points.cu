@@ -336,6 +336,46 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> fusedPrep
 	return std::make_tuple(mask, occ1, xyz3, rgb3);
 }
 
+torch::Tensor computeCov3D(
+		torch::Tensor& scaling_xyz,
+		torch::Tensor& rotation_l)
+{
+	const int P = scaling_xyz.size(0);
+	torch::Tensor cov = torch::empty({P, 6}, scaling_xyz.options());
+
+	if(P != 0)
+	{
+		CudaRasterizer::Rasterizer::computeCov3D(P,
+			scaling_xyz.contiguous().data_ptr<float>(),
+			rotation_l.contiguous().data_ptr<float>(),
+			cov.contiguous().data_ptr<float>());
+	}
+
+	return cov;
+}
+
+std::tuple<torch::Tensor, torch::Tensor> computeCov3DBackward(
+		torch::Tensor& scaling_xyz,
+		torch::Tensor& rotation_l,
+		torch::Tensor& dL_dcov)
+{
+	const int P = scaling_xyz.size(0);
+	torch::Tensor dL_dscaling_xyz = torch::zeros({P, 3}, scaling_xyz.options());
+	torch::Tensor dL_drotation_l = torch::zeros({P, 4}, scaling_xyz.options());
+
+	if(P != 0)
+	{
+		CudaRasterizer::Rasterizer::computeCov3DBackward(P,
+			scaling_xyz.contiguous().data_ptr<float>(),
+			rotation_l.contiguous().data_ptr<float>(),
+			dL_dcov.contiguous().data_ptr<float>(),
+			dL_dscaling_xyz.contiguous().data_ptr<float>(),
+			dL_drotation_l.contiguous().data_ptr<float>());
+	}
+
+	return std::make_tuple(dL_dscaling_xyz, dL_drotation_l);
+}
+
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> computeCov4D(
 		torch::Tensor& scaling_xyzt,
 		torch::Tensor& rotation_l,

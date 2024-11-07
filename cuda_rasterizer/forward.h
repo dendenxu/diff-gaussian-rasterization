@@ -109,6 +109,11 @@ namespace FORWARD
 		glm::vec3* xyz3,
 		glm::vec3* rgb3);
 
+	void computeCov3D(int P,
+		const glm::vec3* scaling_xyz,
+		const glm::vec4* rotation_l,
+		float* cov);
+
 	void computeCov4D(int P,
 		const glm::vec4* scaling_xyzt,
 		const glm::vec4* rotation_l,

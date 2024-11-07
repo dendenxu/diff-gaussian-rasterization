@@ -427,6 +427,34 @@ __device__ void computeCov3D(const glm::vec3 scale, float mod, const glm::vec4 r
 	cov3D[5] = Sigma[2][2];
 }
 
+__global__ void computeCov3DCUDA(int P,
+	const glm::vec3* scaling_xyz,
+	const glm::vec4* rotation_l,
+	float* cov)
+{
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+	computeCov3D(
+		scaling_xyz[idx],
+		1.0f,
+		rotation_l[idx],
+		cov + idx * 6);
+}
+
+void FORWARD::computeCov3D(
+	int P,
+	const glm::vec3* scaling_xyz,
+	const glm::vec4* rotation_l,
+	float* cov)
+{
+	computeCov3DCUDA << <(P + 255) / 256, 256 >> > (
+		P,
+		scaling_xyz,
+		rotation_l,
+		cov);
+}
+
 __device__ void computeCov4D(const glm::vec4 scaling_xyzt, const glm::vec4 rotation_l, const glm::vec4 rotation_r, float* cov, glm::vec3 &ms, float &cov_t)
 {
 	// Create scaling matrix

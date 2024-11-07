@@ -20,6 +20,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("fused_preprocess_4d_sparse", &fusedPreprocess4DSparse);
   m.def("compute_cov_4d", &computeCov4D);
   m.def("compute_cov_4d_backward", &computeCov4DBackward);
+  m.def("compute_cov_3d", &computeCov3D);
+  m.def("compute_cov_3d_backward", &computeCov3DBackward);
   m.def("compute_sh_4d", &computeSH4D);
   m.def("compute_sh_4d_backward", &computeSH4DBackward);
 }

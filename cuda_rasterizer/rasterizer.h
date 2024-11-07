@@ -75,6 +75,20 @@ namespace CudaRasterizer
 			float* projmatrix,
 			bool* present);
 
+		static void computeCov3D(
+			int P,
+			const float* scaling_xyz,
+			const float* rotation_l,
+			float* cov);
+
+		static void computeCov3DBackward(
+			int P,
+			const float* scaling_xyz,
+			const float* rotation_l,
+			const float* dL_dcov,
+			float* dL_dscaling_xyz,
+			float* dL_drotation_l);
+
 		static void computeCov4D(
 			int P,
 			const float* scaling_xyzt,
