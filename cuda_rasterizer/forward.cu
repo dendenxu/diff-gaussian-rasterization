@@ -550,6 +550,84 @@ void FORWARD::computeCov4D(
 		cov_t);
 }
 
+template<int C>
+__global__ void fusedPreprocess4DbetaSparseCUDA(int P,
+	const int deg,
+	const int deg_t,
+	const int M,
+	const glm::vec3* means3D,
+	const float* cov,
+	const glm::vec3* ms,
+	const float* cov_t,
+	const float* opacities,
+	const float* t1,
+	const glm::vec3* bases,
+	const float* shs,
+	const float* t,
+	const int* sparse,
+	const float* beta,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float* cam_pos,
+	const float duration,
+	bool* mask,
+	float* occ1,
+	glm::vec3* xyz3,
+	glm::vec3* rgb3)
+{
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+
+	// Initialize radius and touched tiles to 0. If this isn't changed,
+	// this Gaussian will not be processed further.
+	mask[idx] = false;
+
+	// Perform marginalization using the current time
+	float dt = t[idx] - t1[idx];
+	// float marginal_t = __expf(-0.5 * dt * dt / cov_t[idx]);
+	float marginal_t = __expf(-0.5 * powf(abs(dt / (cov_t[idx])), beta[idx]) );
+	// float marginal_t = 1.0f;
+	if (marginal_t <= 0.05) {
+		return;
+	}
+
+	glm::vec3 xyz = means3D[idx] + ms[idx] * dt;
+
+	// Filter by frustum
+	// Perform near culling, quit if outside.
+	float3 pos {xyz.x, xyz.y, xyz.z};
+	if (!check_frustum(pos, viewmatrix, projmatrix) || opacities[idx] < 0.0001f) {
+		return;
+	}
+
+	float occ = marginal_t * opacities[idx];
+	if (occ < 0.0001f) {
+		return;
+	}
+
+	mask[idx] = true;
+	occ1[idx] = opacities[idx];
+	xyz3[idx] = xyz;
+
+	// Handling sparse SH
+	glm::vec3 rgb = SH_C0 * bases[idx];
+	rgb3[idx] = min(max(rgb + 0.5f, 0.0f), 1.0f); // zero degree sh
+	// rgb3[idx] = bases[idx]; // zero degree sh
+	
+	if (sparse[idx] == -1) {
+		return;
+	}
+	
+	// Computing 4D SH using the current time and viewing direction
+	glm::vec3 dir = xyz - *(glm::vec3*)cam_pos;
+	dir = dir / glm::length(dir);
+	const glm::vec3* sh = ((glm::vec3*)shs) + sparse[idx] * M;
+	rgb += eval4DSHResidual(deg, deg_t, sh, dir, dt, duration);
+	rgb3[idx] = min(max(rgb + 0.5f, 0.0f), 1.0f);
+}
+
+
 // Perform initial steps for each Gaussian prior to rasterization.
 template<int C>
 __global__ void fusedPreprocess4DSparseCUDA(int P,
@@ -1131,6 +1209,56 @@ void FORWARD::fusedPreprocess4DSparse(int P,
 		shs,
 		t,
 		inverse,
+		viewmatrix,
+		projmatrix,
+		cam_pos,
+		duration,
+		mask,
+		occ1,
+		xyz3,
+		rgb3);
+}
+
+void FORWARD::fusedPreprocess4DbetaSparse(int P,
+	const int deg,
+	const int deg_t,
+	const int M,
+	const glm::vec3* means3D,
+	const float* cov,
+	const glm::vec3* ms,
+	const float* cov_t,
+	const float* opacities,
+	const float* t1,
+	const glm::vec3* bases,
+	const float* shs,
+	const float* t,
+	const int* inverse,
+	const float* beta,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float* cam_pos,
+	const float duration,
+	bool* mask,
+	float* occ1,
+	glm::vec3* xyz3,
+	glm::vec3* rgb3)
+{
+	fusedPreprocess4DbetaSparseCUDA<NUM_CHANNELS> << <(P + 255) / 256, 256 >> > (
+		P,
+		deg,
+		deg_t,
+		M,
+		means3D,
+		cov,
+		ms,
+		cov_t,
+		opacities,
+		t1,
+		bases,
+		shs,
+		t,
+		inverse,
+		beta,
 		viewmatrix,
 		projmatrix,
 		cam_pos,
