@@ -620,7 +620,7 @@ __global__ void fusedPreprocess4DSparseCUDA(int P,
 	// Computing 4D SH using the current time and viewing direction
 	glm::vec3 dir = xyz - *(glm::vec3*)cam_pos;
 	dir = dir / glm::length(dir);
-	const glm::vec3* sh = ((glm::vec3*)shs) + sparse[idx] * M;
+	const glm::vec3* sh = (glm::vec3*)shs + sparse[idx] * M;
 	rgb += eval4DSHResidual(deg, deg_t, sh, dir, dt, duration);
 	rgb3[idx] = min(max(rgb + 0.5f, 0.0f), 1.0f);
 }
@@ -683,6 +683,12 @@ __global__ void fusedPreprocess4DCUDA(int P,
 	dir = dir / glm::length(dir);
 	const glm::vec3* sh = ((glm::vec3*)shs) + idx * M;
 	glm::vec3 rgb = eval4DSH(deg, deg_t, sh, dir, dt, duration);
+
+	// glm::vec3 rgb(0.0f);
+	// const glm::vec3* sh = (glm::vec3*)shs + idx * M;
+	// glm::vec3 sh0 = *sh;
+	// float l0m0 = SH_C0;
+	// glm::vec3 rgb = l0m0 * sh0;
 
 	mask[idx] = true;
 	occ1[idx] = occ;
